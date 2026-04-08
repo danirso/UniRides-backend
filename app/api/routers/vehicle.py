@@ -28,7 +28,7 @@ def registrar_veiculo(vehicle_in: VehicleCreate, db: Session = Depends(get_db), 
 def listar_veiculos(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     return db.query(Vehicle).filter(Vehicle.owner_id == current_user.id).all()
 
-@router.patch("{vehicle_id}", response_model=VehicleResponse)
+@router.patch("/{vehicle_id}", response_model=VehicleResponse)
 def atualizar_veiculos(vehicle_id: UUID, vehicle_in: VehicleUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     db_vehicle = db.query(Vehicle).filter(Vehicle.id == vehicle_id, Vehicle.owner_id == current_user.id).first()
     
