@@ -13,7 +13,7 @@ router = APIRouter(prefix="/vehicles", tags=["Veículos"])
 @router.post("/", response_model=VehicleResponse, status_code=status.HTTP_201_CREATED)
 def registrar_veiculo(vehicle_in: VehicleCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if not current_user.can_drive:
-        raise HTTPException(status_code=403, detail="Usuário não possui permissão para dirigir.")
+        raise HTTPException(status_code=403, detail="Usuário não cadastrado como motorista.")
     
     if db.query(Vehicle).filter(Vehicle.plate == vehicle_in.plate).first():
         raise HTTPException(status_code=400, detail="Placa já cadastrada no sistema.")
