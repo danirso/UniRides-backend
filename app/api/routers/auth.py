@@ -12,7 +12,7 @@ from app.core.security import set_password_hash, verify_password, create_access_
 
 router = APIRouter(prefix="/auth", tags=["Autenticação"])
 
-@router.post("/registrar", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def registrar_usuario(user_in: UserCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == user_in.email).first()
     if user:
@@ -21,7 +21,7 @@ def registrar_usuario(user_in: UserCreate, background_tasks: BackgroundTasks, db
             detail="E-mail já cadastrado."
         )
     token = secrets.token_urlsafe(32)
-    expiration = datetime.now(timezone(timedelta(hours=3))) + timedelta(hours=1)
+    expiration = datetime.now(timezone.utc) + timedelta(hours=1)
     
     new_user = User(
         name=user_in.name,
