@@ -21,3 +21,4 @@ class User(Base):
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
     
     vehicles = relationship("Vehicle", back_populates="owner", cascade="all, delete-orphan")
+    rides = relationship("Ride", back_populates="driver")

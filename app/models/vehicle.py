@@ -16,3 +16,4 @@ class Vehicle(Base):
     capacity = Column(Integer, nullable=False)
 
     owner = relationship("User", back_populates="vehicles")
+    rides = relationship("Ride", back_populates="vehicle")
