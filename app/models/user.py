@@ -1,6 +1,7 @@
 import uuid
 from sqlalchemy import Column, String, Boolean, Integer, Numeric, DateTime, func
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
 from app.db.database import Base
 
 class User(Base):
@@ -18,3 +19,5 @@ class User(Base):
     rating_count = Column(Integer, default=0)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    
+    vehicles = relationship("Vehicle", back_populates="owner", cascade="all, delete-orphan")
