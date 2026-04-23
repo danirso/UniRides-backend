@@ -115,3 +115,54 @@ def deletar_carona(
     db.delete(ride)
     db.commit()
     return
+
+@router.post("/{ride_id}/start", response_model=RideResponse)
+def iniciar_carona(
+    ride_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    ride = db.query(Ride).filter(Ride.id == ride_id, Ride.driver_id == current_user.id).first()
+    if not ride:
+        raise HTTPException(status_code=404, detail="Carona não encontrada.")
+    if ride.status != RideStatus.SCHEDULED:
+        raise HTTPException(status_code=400, detail="Apenas caronas agendadas podem ser iniciadas.")
+    
+    ride.status = RideStatus.IN_PROGRESS
+    db.commit()
+    db.refresh(ride)
+    return ride
+
+@router.post("/{ride_id}/complete", response_model=RideResponse)
+def finalizar_carona(
+    ride_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    ride = db.query(Ride).filter(Ride.id == ride_id, Ride.driver_id == current_user.id).first()
+    if not ride:
+        raise HTTPException(status_code=404, detail="Carona não encontrada.")
+    if ride.status != RideStatus.IN_PROGRESS:
+        raise HTTPException(status_code=400, detail="Apenas caronas em andamento podem ser concluídas.")
+    
+    ride.status = RideStatus.COMPLETED
+    db.commit()
+    db.refresh(ride)
+    return ride
+
+@router.post("/{ride_id}/cancel", response_model=RideResponse)
+def cancelar_carona(
+    ride_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    ride = db.query(Ride).filter(Ride.id == ride_id, Ride.driver_id == current_user.id).first()
+    if not ride:
+        raise HTTPException(status_code=404, detail="Carona não encontrada.")
+    if ride.status not in [RideStatus.SCHEDULED, RideStatus.IN_PROGRESS]:
+        raise HTTPException(status_code=400, detail="Esta carona já foi encerrada ou cancelada.")
+    
+    ride.status = RideStatus.CANCELED
+    db.commit()
+    db.refresh(ride)
+    return ride
