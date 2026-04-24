@@ -1,4 +1,5 @@
 import pytest
+import os
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -6,6 +7,8 @@ from sqlalchemy.pool import StaticPool
 
 from app.main import app
 from app.db.database import Base, get_db
+
+os.environ["SUPPRESS_SEND"] = "True"
 
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
 
