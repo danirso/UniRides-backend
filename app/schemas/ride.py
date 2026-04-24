@@ -10,7 +10,6 @@ class RideBase(BaseModel):
     departure_time: datetime = Field(..., description="Horário de partida")
     start_point: str = Field(..., description="Coordenadas de partida")
     end_point: str = Field(..., description="Coordenadas de chegada")
-    # Estimativas (Opcionais na criação, podem ser calculadas depois)
     estimated_duration_mins: Optional[int] = Field(None, ge=0)
     estimated_distance_km: Optional[Decimal] = Field(None, ge=0)
     route_line: Optional[str] = None
