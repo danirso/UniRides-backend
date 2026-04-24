@@ -50,5 +50,5 @@ def client():
 
 @pytest.fixture(autouse=True)
 def mock_send_email():
-    with patch("app.api.routers.user.send_activation_email") as mock:
+    with patch("fastapi_mail.FastMail.send_message") as mock:
         yield mock
