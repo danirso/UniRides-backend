@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, field_validator, ConfigDict
 from typing import Optional
 from uuid import UUID
 from datetime import datetime
@@ -42,5 +42,4 @@ class UserResponse(BaseModel):
     rating_avg: float
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
