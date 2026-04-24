@@ -26,5 +26,12 @@ jobs:
         pip install -r requirements-dev.txt
         
     - name: Execute Pytest
+      env:
+        DATABASE_URL: "sqlite:///:memory:"
+        SECRET_KEY: "alou"
+        MAIL_USERNAME: "teste"
+        MAIL_PASSWORD: "123"
+        MAIL_FROM: "teste@teste.com"
+        MAIL_SERVER: "smtp.teste.com"
       run: |
         pytest
