@@ -1,5 +1,6 @@
 import pytest
 import os
+from unittest.mock import patch
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -58,3 +59,8 @@ def test_user_verified(client, db_session):
     db_session.refresh(user)
     
     return user
+
+@pytest.fixture(autouse=True)
+def block_email_sending():
+    with patch("fastapi_mail.FastMail.send_message") as mock_send:
+        yield mock_send
