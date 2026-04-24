@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     MAIL_PORT: int = 587
     MAIL_SERVER: str
     MAIL_FROM_NAME: str = "Unirides"
+    GOOGLE_MAPS_API_KEY: str
+    TEST_DATABASE_URL: str
 
     model_config = SettingsConfigDict(env_file=".env")
 

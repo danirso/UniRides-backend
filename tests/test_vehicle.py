@@ -23,6 +23,22 @@ def motorista_setup(db_session):
     return user, {"Authorization": f"Bearer {token}"}
 
 @pytest.fixture
+def motorista2_setup(db_session):
+    user = User(
+        name="Motorista Teste2",
+        email="motorista2@puccampinas.edu.br",
+        password_hash=set_password_hash("123"),
+        is_email_verified=True,
+        can_drive=True
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    
+    token = create_access_token(data={"sub": str(user.id)})
+    return user, {"Authorization": f"Bearer {token}"}
+
+@pytest.fixture
 def passageiro_setup(db_session):
     user = User(
         name="Passageiro Teste",
@@ -85,16 +101,17 @@ def test_registrar_veiculo_placa_duplicada_400(client, motorista_setup, db_sessi
 # TESTES DA ROTA: GET /vehicles/
 # ==========================================
 
-def test_listar_veiculos_isolamento_200(client, motorista_setup, db_session):
-    motorista, headers = motorista_setup
+def test_listar_veiculos_isolamento_200(client, motorista_setup,motorista2_setup, db_session):
+    motorista,motorista_headers = motorista_setup
+    motorista2,motorista2_headers = motorista2_setup
     
     v1 = Vehicle(plate="LOG0001", brand="A", model="B", color="C", capacity=2, owner_id=motorista.id)
-    v2 = Vehicle(plate="OUT0002", brand="X", model="Y", color="Z", capacity=2, owner_id=uuid.uuid4())
+    v2 = Vehicle(plate="OUT0002", brand="X", model="Y", color="Z", capacity=2, owner_id=motorista2.id)
     
     db_session.add_all([v1, v2])
     db_session.commit()
 
-    response = client.get("/vehicles/", headers=headers)
+    response = client.get("/vehicles/", headers=motorista_headers)
     
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
@@ -118,10 +135,11 @@ def test_atualizar_veiculo_sucesso_200(client, motorista_setup, db_session):
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["color"] == "Vermelho"
 
-def test_atualizar_veiculo_outro_dono_404(client, motorista_setup, db_session):
+def test_atualizar_veiculo_outro_dono_404(client, motorista_setup, motorista2_setup, db_session):
     _, headers = motorista_setup
+    motorista2,motorista2_headers = motorista2_setup
   
-    veiculo = Vehicle(plate="DENY000", brand="A", model="B", color="C", capacity=2, owner_id=uuid.uuid4())
+    veiculo = Vehicle(plate="DEN0L00", brand="A", model="B", color="C", capacity=2, owner_id=motorista2.id)
     db_session.add(veiculo)
     db_session.commit()
 

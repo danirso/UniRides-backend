@@ -1,24 +1,29 @@
 import pytest
 import os
-from unittest.mock import patch
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
+from fastapi.testclient import TestClient
+from unittest.mock import patch
 
-from app.main import app
 from app.db.database import Base, get_db
+from app.main import app
+from app.core.config import settings
 
-os.environ["SUPPRESS_SEND"] = "True"
+TEST_SQLALCHEMY_DATABASE_URL = settings.TEST_DATABASE_URL
 
-SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
+if not TEST_SQLALCHEMY_DATABASE_URL:
+    raise RuntimeError("A variável TEST_DATABASE_URL não foi encontrada")
 
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
+
+engine = create_engine(TEST_SQLALCHEMY_DATABASE_URL)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+@pytest.fixture(scope="session", autouse=True)
+def setup_test_db():
+    with engine.connect() as conn:
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS postgis;"))
+        conn.commit()
+    yield
 
 @pytest.fixture(scope="function")
 def db_session():
@@ -30,37 +35,20 @@ def db_session():
         db.close()
         Base.metadata.drop_all(bind=engine)
 
-@pytest.fixture(scope="function")
-def client(db_session):
+@pytest.fixture(scope="module")
+def client():
     def override_get_db():
         try:
-            yield db_session
+            db = TestingSessionLocal()
+            yield db
         finally:
-            pass
+            db.close()
             
     app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as c:
         yield c
 
-@pytest.fixture(scope="function")
-def test_user_verified(client, db_session):
-    from app.models.user import User
-    from app.core.security import set_password_hash
-
-    user = User(
-        name="denis",
-        email="test@unirides.com",
-        password_hash=set_password_hash("senha123"),
-        is_email_verified=True,
-    )
-    
-    db_session.add(user)
-    db_session.commit()
-    db_session.refresh(user)
-    
-    return user
-
 @pytest.fixture(autouse=True)
-def block_email_sending():
-    with patch("fastapi_mail.FastMail.send_message") as mock_send:
-        yield mock_send
+def mock_send_email():
+    with patch("app.api.routers.user.send_activation_email") as mock:
+        yield mock
