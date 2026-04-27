@@ -9,7 +9,7 @@ from app.models.vehicle import Vehicle
 from app.models.ride import Ride, RideStatus
 from app.schemas.ride import RideCreate, RideResponse,RideUpdate
 from app.api.dependencies import get_current_user
-from app.services.maps import buscar_detalhes_da_rota
+from app.services.maps import buscar_detalhes_da_rota, polyline_to_linestring
 
 router = APIRouter(prefix="/rides", tags=["Caronas"])
 
@@ -54,7 +54,8 @@ async def criar_carona(
         destination_geom=f"SRID=4326;POINT({detalhes_rota['end_location']['lng']} {detalhes_rota['end_location']['lat']})",
         distance_km=detalhes_rota["distance_km"],
         estimated_duration_mins=detalhes_rota["duration_mins"],
-        route_polyline=detalhes_rota["polyline"]
+        route_polyline=detalhes_rota["polyline"],
+        route_geom=polyline_to_linestring(detalhes_rota["polyline"])
     )
     
     db.add(nova_carona)

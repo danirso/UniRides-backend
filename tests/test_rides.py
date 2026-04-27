@@ -73,13 +73,13 @@ def test_criar_carona_sucesso_201(mock_buscar_detalhes,client, motorista_setup):
     _, veiculo, headers = motorista_setup
     
     mock_buscar_detalhes.return_value = {
-        "origin_address": "Endereço Origem Mock",
-        "destination_address": "Endereço Destino Mock",
-        "distance_km": 10.0,
-        "duration_mins": 15,
-        "polyline": "linha_azul_falsa",
-        "start_location": {"lat": -22.0, "lng": -47.0},
-        "end_location": {"lat": -22.1, "lng": -47.1}
+        "origin_address": "Av. Iguatemi, 777 - Vila Brandina, Campinas - SP",
+        "destination_address": "Ac. Publico, 286 - Parque dos Jacarandás, Campinas - SP",
+        "distance_km": 14.58,
+        "duration_mins": 19,
+        "polyline": r"hivjCba`~Gi@xJETGFMBE@eAe@i@[oAm@KHGVBTNLbCj@nB~@^NHPHVC\InA@VFh@X`BAj@Cj@W`AOb@]`ALVHFL@P@Tk@DOHYFUJcA|@eNNgDPsBVgBDsARqB^mFHcBCaAM}@Mi@c@aAkD_FoBcCuB_DcDkEs@eAsBoCaC_Dc@g@uA{AyEmFsAgB[c@k@kAQa@_@oA{BoJcAmEy@_Ds@mBIWAWAi@Di@P}ACc@QWq@Sc@MqAM}C_@g@DYJ_@VUVMb@@h@HVJNl@T`@PxCr@z@Rh@LLNJP@TOv@k@fC[fAWn@g@|@g@f@w@f@qBj@gF`By@ZcMfDkCz@gG`By@R{A`@SLQHwBv@uCfAIPuAb@IB]JkBh@yOrE}PbF_EjA}HzBcHrByNlEuEpAuFzAgCx@}HzBiLhDgHpBaBj@kAj@sAv@}AfAaBrAcAdAw@~@gEzFmCvDqBvCmDzEcF`HoAhBaBhCcAvA[d@w@rAe@lAy@zBa@hBYjBSlBIpBEnBOpLWtRQ|D_@tAQlAQhAu@nF[bBITm@jDwAdIe@jDSvBMxBQhFE|B@pEBxBN~CZjFb@`EAXBXJ|ANjE?LOj@QRi@ZUNKLO^On@Wr@QRg@TmBJmCTgD\qB^a@JqEjAeAVa@@YCc@IUKmA{@aEsDiCgC_DwCm@c@?SCYDs@@o@Lk@Pi@b@eA|B{EdAgC`AuBZ_@n@c@RSR[Pa@F[Hy@?UNw@|@yB`@aANk@PoAJ}AFIDSCUQOU?QLADYHkAReCRiAHUC?CCEMGK?E?",
+        "start_location": {"lat": -22.8955, "lng": -47.0233},
+        "end_location": {"lat": -22.8311, "lng": -47.0611}
     }
     
     payload = {
@@ -95,8 +95,8 @@ def test_criar_carona_sucesso_201(mock_buscar_detalhes,client, motorista_setup):
     
     assert response.status_code == status.HTTP_201_CREATED
     data = response.json()
-    assert data["distance_km"] == 10.0
-    assert data["route_polyline"] == "linha_azul_falsa"
+    assert data["distance_km"] == 14.58
+    assert data["route_polyline"] == r"hivjCba`~Gi@xJETGFMBE@eAe@i@[oAm@KHGVBTNLbCj@nB~@^NHPHVC\InA@VFh@X`BAj@Cj@W`AOb@]`ALVHFL@P@Tk@DOHYFUJcA|@eNNgDPsBVgBDsARqB^mFHcBCaAM}@Mi@c@aAkD_FoBcCuB_DcDkEs@eAsBoCaC_Dc@g@uA{AyEmFsAgB[c@k@kAQa@_@oA{BoJcAmEy@_Ds@mBIWAWAi@Di@P}ACc@QWq@Sc@MqAM}C_@g@DYJ_@VUVMb@@h@HVJNl@T`@PxCr@z@Rh@LLNJP@TOv@k@fC[fAWn@g@|@g@f@w@f@qBj@gF`By@ZcMfDkCz@gG`By@R{A`@SLQHwBv@uCfAIPuAb@IB]JkBh@yOrE}PbF_EjA}HzBcHrByNlEuEpAuFzAgCx@}HzBiLhDgHpBaBj@kAj@sAv@}AfAaBrAcAdAw@~@gEzFmCvDqBvCmDzEcF`HoAhBaBhCcAvA[d@w@rAe@lAy@zBa@hBYjBSlBIpBEnBOpLWtRQ|D_@tAQlAQhAu@nF[bBITm@jDwAdIe@jDSvBMxBQhFE|B@pEBxBN~CZjFb@`EAXBXJ|ANjE?LOj@QRi@ZUNKLO^On@Wr@QRg@TmBJmCTgD\qB^a@JqEjAeAVa@@YCc@IUKmA{@aEsDiCgC_DwCm@c@?SCYDs@@o@Lk@Pi@b@eA|B{EdAgC`AuBZ_@n@c@RSR[Pa@F[Hy@?UNw@|@yB`@aANk@PoAJ}AFIDSCUQOU?QLADYHkAReCRiAHUC?CCEMGK?E?"
     assert data["status"] == RideStatus.SCHEDULED.value
     mock_buscar_detalhes.assert_called_once()
 

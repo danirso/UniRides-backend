@@ -1,4 +1,5 @@
 import httpx
+import polyline
 from fastapi import HTTPException, status
 from app.core.config import settings
 from decimal import Decimal
@@ -47,3 +48,9 @@ async def buscar_detalhes_da_rota(origem: str, destino: str) -> dict:
             "start_location": leg["start_location"],
             "end_location": leg["end_location"]
         }
+        
+def polyline_to_linestring(polyline_str: str) -> str:
+    coordenadas = polyline.decode(polyline_str)
+    pontos_wkt = ", ".join([f"{lon} {lat}" for lat,lon in coordenadas])
+    
+    return f"SRID=4326;LINESTRING({pontos_wkt})"
