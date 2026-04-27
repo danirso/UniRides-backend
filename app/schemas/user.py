@@ -12,7 +12,7 @@ class UserCreate(BaseModel):
     @field_validator("email")
     @classmethod
     def validate_email(cls, value: str) -> str:
-        domain = "@puccampinas.edu.br"
+        domain = ("@puccampinas.edu.br","@dac.unicamp.br")
         if not value.endswith(domain):
             raise ValueError("Email inválido, por favor utilize seu email institucional")
         return value.lower()
