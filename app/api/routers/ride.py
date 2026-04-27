@@ -9,16 +9,17 @@ from app.models.vehicle import Vehicle
 from app.models.ride import Ride, RideStatus
 from app.schemas.ride import RideCreate, RideResponse,RideUpdate
 from app.api.dependencies import get_current_user
+from app.services.maps import buscar_detalhes_da_rota
 
 router = APIRouter(prefix="/rides", tags=["Caronas"])
 
 @router.post("/", response_model=RideResponse, status_code=status.HTTP_201_CREATED)
-def criar_carona(
+async def criar_carona(
     ride_in: RideCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    
+
     vehicle = db.query(Vehicle).filter(
         Vehicle.id == ride_in.vehicle_id,
         Vehicle.owner_id == current_user.id
@@ -33,21 +34,34 @@ def criar_carona(
     if ride_in.available_seats > vehicle.capacity:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"O veículo selecionado suporta no máximo {vehicle.capacity} passageiros."
+            detail=f"O veículo suporta no máximo {vehicle.capacity} passageiros."
         )
 
-    ride_data = ride_in.model_dump()
-    
-    new_ride = Ride(
+    detalhes_rota = await buscar_detalhes_da_rota(
+        origem=ride_in.origin_address, 
+        destino=ride_in.destination_address
+    )
+
+    nova_carona = Ride(
         driver_id=current_user.id,
-        **ride_data
+        vehicle_id=ride_in.vehicle_id,
+        available_seats=ride_in.available_seats,
+        max_detour_meters=ride_in.max_detour_meters,
+        departure_time=ride_in.departure_time,
+        origin_address=detalhes_rota["origin_address"],
+        destination_address=detalhes_rota["destination_address"],
+        origin_geom=f"SRID=4326;POINT({detalhes_rota['start_location']['lng']} {detalhes_rota['start_location']['lat']})",
+        destination_geom=f"SRID=4326;POINT({detalhes_rota['end_location']['lng']} {detalhes_rota['end_location']['lat']})",
+        distance_km=detalhes_rota["distance_km"],
+        estimated_duration_mins=detalhes_rota["duration_mins"],
+        route_polyline=detalhes_rota["polyline"]
     )
     
-    db.add(new_ride)
+    db.add(nova_carona)
     db.commit()
-    db.refresh(new_ride)
+    db.refresh(nova_carona)
     
-    return new_ride
+    return nova_carona
 
 @router.get("/me", response_model=List[RideResponse])
 def listar_minhas_caronas(

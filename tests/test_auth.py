@@ -8,7 +8,7 @@ from app.core.security import set_password_hash
 # TESTES DA ROTA: /auth/register
 # ==========================================
 
-def test_register_201(client):
+def test_register_201(client, db_session):
     payload = {
         "name": "Usuario Novo",
         "email": "novo@puccampinas.edu.br",
@@ -43,7 +43,7 @@ def test_register_email_duplicado_400(client, db_session):
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert response.json()["detail"] == "E-mail já cadastrado."
 
-def test_register_payload_invalido_422(client):
+def test_register_payload_invalido_422(client, db_session):
     payload = {
         "name": "Usuario Invalido",
         "email": "invalido@puccampinas.edu.br"
@@ -137,7 +137,7 @@ def test_verify_email_sucesso_200(client, db_session):
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["message"] == "E-mail verificado com sucesso! Sua conta está ativada."
 
-def test_verify_email_token_invalido_400(client):
+def test_verify_email_token_invalido_400(client, db_session):
     response = client.get("/auth/verify-email?token=token_inexistente")
     
     assert response.status_code == status.HTTP_400_BAD_REQUEST

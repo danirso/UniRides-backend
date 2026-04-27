@@ -2,6 +2,8 @@ import pytest
 import uuid
 from datetime import datetime, timedelta, timezone
 from fastapi import status
+from unittest.mock import patch, AsyncMock
+
 from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.models.ride import Ride, RideStatus
@@ -48,8 +50,11 @@ def carona_agendada(db_session, motorista_setup):
     ride = Ride(
         driver_id=user.id,
         vehicle_id=veiculo.id,
-        start_point="Campus I",
-        end_point="Centro",
+        origin_address="Campus I",
+        destination_address="Centro",
+        distance_km=5.0,
+        route_polyline="Linha Azul Fake",
+        estimated_duration_mins=15,
         departure_time=datetime.now(timezone.utc) + timedelta(hours=2),
         available_seats=2,
         status=RideStatus.SCHEDULED
@@ -63,29 +68,44 @@ def carona_agendada(db_session, motorista_setup):
 # TESTES DA ROTA: POST /rides/
 # ==========================================
 
-def test_criar_carona_sucesso_201(client, motorista_setup):
+@patch("app.api.routers.ride.buscar_detalhes_da_rota", new_callable=AsyncMock)
+def test_criar_carona_sucesso_201(mock_buscar_detalhes,client, motorista_setup):
     _, veiculo, headers = motorista_setup
+    
+    mock_buscar_detalhes.return_value = {
+        "origin_address": "Endereço Origem Mock",
+        "destination_address": "Endereço Destino Mock",
+        "distance_km": 10.0,
+        "duration_mins": 15,
+        "polyline": "linha_azul_falsa",
+        "start_location": {"lat": -22.0, "lng": -47.0},
+        "end_location": {"lat": -22.1, "lng": -47.1}
+    }
+    
     payload = {
         "vehicle_id": str(veiculo.id),
-        "start_point": "Campus I",
-        "end_point": "Dom Pedro",
+        "origin_address": "Rua X",
+        "destination_address": "Rua Y",
         "departure_time": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
-        "available_seats": 2
+        "available_seats": 2,
+        "max_detour_meters":500
     }
     
     response = client.post("/rides/", json=payload, headers=headers)
     
     assert response.status_code == status.HTTP_201_CREATED
     data = response.json()
-    assert data["start_point"] == payload["start_point"]
+    assert data["distance_km"] == 10.0
+    assert data["route_polyline"] == "linha_azul_falsa"
     assert data["status"] == RideStatus.SCHEDULED.value
+    mock_buscar_detalhes.assert_called_once()
 
 def test_criar_carona_veiculo_invalido_403(client, motorista_setup):
     _, _, headers = motorista_setup
     payload = {
         "vehicle_id": str(uuid.uuid4()),
-        "start_point": "A",
-        "end_point": "B",
+        "origin_address": "A",
+        "destination_address": "B",
         "departure_time": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
         "available_seats": 2
     }
@@ -98,8 +118,8 @@ def test_criar_carona_capacidade_excedida_400(client, motorista_setup):
     _, veiculo, headers = motorista_setup
     payload = {
         "vehicle_id": str(veiculo.id),
-        "start_point": "A",
-        "end_point": "B",
+        "origin_address": "A",
+        "destination_address": "B",
         "departure_time": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
         "available_seats": 5 
     }
@@ -114,12 +134,12 @@ def test_criar_carona_capacidade_excedida_400(client, motorista_setup):
 
 def test_atualizar_carona_sucesso_200(client, motorista_setup, carona_agendada):
     _, _, headers = motorista_setup
-    payload = {"end_point": "Novo Destino"}
+    payload = {"destination_address": "Novo Destino"}
     
     response = client.patch(f"/rides/{carona_agendada.id}", json=payload, headers=headers)
     
     assert response.status_code == status.HTTP_200_OK
-    assert response.json()["end_point"] == "Novo Destino"
+    assert response.json()["destination_address"] == "Novo Destino"
 
 def test_atualizar_carona_capacidade_excedida_400(client, motorista_setup, carona_agendada):
     _, _, headers = motorista_setup
