@@ -34,7 +34,7 @@ class Ride(Base):
     
     origin_geom = Column(Geometry("POINT", srid=4326))
     destination_geom = Column(Geometry("POINT", srid=4326))
-    
+    route_geom = Column(Geometry(geometry_type="LINESTRING", srid=4326, nullable=True))
  
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
