@@ -37,3 +37,9 @@ class RideResponse(RideBase):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+    
+class RideSearchRequest(BaseModel):
+    origin_lat: float = Field(..., description="Latitude da origem do passageiro")
+    origin_lng: float = Field(..., description="Longitude da origem do passageiro")
+    destination_lat: float = Field(..., description="Latitude do destino do passageiro")
+    destination_lng: float = Field(..., description="Longitude do destino do passageiro")

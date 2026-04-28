@@ -1,5 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select,func,cast
+from geoalchemy2.types import Geography
+from datetime import datetime, timezone
 from typing import List
 from uuid import UUID
 
@@ -7,7 +11,7 @@ from app.db.database import get_db
 from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.models.ride import Ride, RideStatus
-from app.schemas.ride import RideCreate, RideResponse,RideUpdate
+from app.schemas.ride import RideCreate, RideResponse,RideUpdate, RideSearchRequest
 from app.api.dependencies import get_current_user
 from app.services.maps import buscar_detalhes_da_rota, polyline_to_linestring
 
@@ -181,3 +185,38 @@ def cancelar_carona(
     db.commit()
     db.refresh(ride)
     return ride
+
+@router.post("/search", response_model=list[RideResponse])
+def buscar_carona(
+    search_params: RideSearchRequest,
+    db: AsyncSession= Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    origem_pt = func.ST_SetSRID(func.ST_MakePoint(search_params.origin_lng, search_params.origin_lat), 4326)
+    destino_pt = func.ST_SetSRID(func.ST_MakePoint(search_params.destination_lng, search_params.destination_lat), 4326)
+
+    query = select(Ride).where(
+        Ride.status == RideStatus.SCHEDULED,
+        Ride.available_seats > 0,
+        Ride.departure_time > datetime.now(timezone.utc),
+        Ride.driver_id != current_user.id,
+        
+        func.ST_DWithin(
+            cast(Ride.route_geom, Geography), 
+            cast(origem_pt, Geography), 
+            Ride.max_detour_meters
+        ),
+        
+        func.ST_DWithin(
+            cast(Ride.route_geom, Geography), 
+            cast(destino_pt, Geography), 
+            Ride.max_detour_meters
+        ),
+        
+        func.ST_LineLocatePoint(Ride.route_geom, origem_pt) < func.ST_LineLocatePoint(Ride.route_geom, destino_pt)
+    )
+
+    result = db.execute(query)
+    caronas_compativeis = result.scalars().all()
+    
+    return caronas_compativeis

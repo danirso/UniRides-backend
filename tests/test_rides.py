@@ -64,6 +64,24 @@ def carona_agendada(db_session, motorista_setup):
     db_session.refresh(ride)
     return ride
 
+@pytest.fixture
+def passageiro_setup(client, db_session):
+    # Cria um usuário novo no banco de dados de teste
+    passageiro = User(
+        name="Passageiro Teste",
+        email="passageiro@teste.com",
+        password_hash="hash_qualquer",
+        # ... outros campos obrigatórios
+    )
+    db_session.add(passageiro)
+    db_session.commit()
+    
+    # Gera o token JWT para ele (ajuste conforme a sua função de login real)
+    token = create_access_token(data={"sub": str(passageiro.id)})
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    return passageiro, headers
+
 # ==========================================
 # TESTES DA ROTA: POST /rides/
 # ==========================================
@@ -189,3 +207,131 @@ def test_cancelar_carona_sucesso_200(client, motorista_setup, carona_agendada):
     
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["status"] == RideStatus.CANCELED.value
+ 
+# ==========================================
+# TESTES DA QUERY ESPACIAL
+# ========================================== 
+    
+from unittest.mock import patch, AsyncMock
+
+@patch("app.api.routers.ride.buscar_detalhes_da_rota", new_callable=AsyncMock)
+def test_buscar_caronas_sucesso_match_perfeito(mock_buscar_detalhes, client, motorista_setup, passageiro_setup):
+    _, veiculo_motorista, headers_motorista = motorista_setup
+    _, headers_passageiro = passageiro_setup 
+
+    mock_buscar_detalhes.return_value = {
+        "origin_address": "Av. Iguatemi, 777 - Vila Brandina, Campinas - SP",
+        "destination_address": "Ac. Publico, 286 - Parque dos Jacarandás, Campinas - SP",
+        "distance_km": 14.58,
+        "duration_mins": 19,
+        "polyline": r"hivjCba`~Gi@xJETGFMBE@eAe@i@[oAm@KHGVBTNLbCj@nB~@^NHPHVC\InA@VFh@X`BAj@Cj@W`AOb@]`ALVHFL@P@Tk@DOHYFUJcA|@eNNgDPsBVgBDsARqB^mFHcBCaAM}@Mi@c@aAkD_FoBcCuB_DcDkEs@eAsBoCaC_Dc@g@uA{AyEmFsAgB[c@k@kAQa@_@oA{BoJcAmEy@_Ds@mBIWAWAi@Di@P}ACc@QWq@Sc@MqAM}C_@g@DYJ_@VUVMb@@h@HVJNl@T`@PxCr@z@Rh@LLNJP@TOv@k@fC[fAWn@g@|@g@f@w@f@qBj@gF`By@ZcMfDkCz@gG`By@R{A`@SLQHwBv@uCfAIPuAb@IB]JkBh@yOrE}PbF_EjA}HzBcHrByNlEuEpAuFzAgCx@}HzBiLhDgHpBaBj@kAj@sAv@}AfAaBrAcAdAw@~@gEzFmCvDqBvCmDzEcF`HoAhBaBhCcAvA[d@w@rAe@lAy@zBa@hBYjBSlBIpBEnBOpLWtRQ|D_@tAQlAQhAu@nF[bBITm@jDwAdIe@jDSvBMxBQhFE|B@pEBxBN~CZjFb@`EAXBXJ|ANjE?LOj@QRi@ZUNKLO^On@Wr@QRg@TmBJmCTgD\qB^a@JqEjAeAVa@@YCc@IUKmA{@aEsDiCgC_DwCm@c@?SCYDs@@o@Lk@Pi@b@eA|B{EdAgC`AuBZ_@n@c@RSR[Pa@F[Hy@?UNw@|@yB`@aANk@PoAJ}AFIDSCUQOU?QLADYHkAReCRiAHUC?CCEMGK?E?",
+        "start_location": {"lat": -22.8955, "lng": -47.0233},
+        "end_location": {"lat": -22.8311, "lng": -47.0611}
+    }
+
+    payload_criacao = {
+        "vehicle_id": str(veiculo_motorista.id),
+        "origin_address": "Iguatemi Campinas",
+        "destination_address": "Parque dos Jacarandás",
+        "departure_time": "2026-12-31T10:00:00Z",
+        "available_seats": 2,
+        "max_detour_meters": 1000 
+    }
+    client.post("/rides/", json=payload_criacao, headers=headers_motorista)
+
+    payload_busca = {
+        "origin_lat": -22.8950, 
+        "origin_lng": -47.0230,
+        "destination_lat": -22.8315, 
+        "destination_lng": -47.0615
+    }
+    
+    response = client.post("/rides/search", json=payload_busca, headers=headers_passageiro)
+    
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert len(data) >= 1
+    assert data[0]["available_seats"] == 2
+
+
+@patch("app.api.routers.ride.buscar_detalhes_da_rota", new_callable=AsyncMock)
+def test_buscar_caronas_falha_distancia(mock_buscar_detalhes, client, motorista_setup, passageiro_setup):
+    _, veiculo_motorista, headers_motorista = motorista_setup
+    _, headers_passageiro = passageiro_setup
+    
+    
+    mock_buscar_detalhes.return_value = {
+        "origin_address": "Av. Iguatemi, 777 - Vila Brandina, Campinas - SP",
+        "destination_address": "Ac. Publico, 286 - Parque dos Jacarandás, Campinas - SP",
+        "distance_km": 14.58,
+        "duration_mins": 19,
+        "polyline": r"hivjCba`~Gi@xJETGFMBE@eAe@i@[oAm@KHGVBTNLbCj@nB~@^NHPHVC\InA@VFh@X`BAj@Cj@W`AOb@]`ALVHFL@P@Tk@DOHYFUJcA|@eNNgDPsBVgBDsARqB^mFHcBCaAM}@Mi@c@aAkD_FoBcCuB_DcDkEs@eAsBoCaC_Dc@g@uA{AyEmFsAgB[c@k@kAQa@_@oA{BoJcAmEy@_Ds@mBIWAWAi@Di@P}ACc@QWq@Sc@MqAM}C_@g@DYJ_@VUVMb@@h@HVJNl@T`@PxCr@z@Rh@LLNJP@TOv@k@fC[fAWn@g@|@g@f@w@f@qBj@gF`By@ZcMfDkCz@gG`By@R{A`@SLQHwBv@uCfAIPuAb@IB]JkBh@yOrE}PbF_EjA}HzBcHrByNlEuEpAuFzAgCx@}HzBiLhDgHpBaBj@kAj@sAv@}AfAaBrAcAdAw@~@gEzFmCvDqBvCmDzEcF`HoAhBaBhCcAvA[d@w@rAe@lAy@zBa@hBYjBSlBIpBEnBOpLWtRQ|D_@tAQlAQhAu@nF[bBITm@jDwAdIe@jDSvBMxBQhFE|B@pEBxBN~CZjFb@`EAXBXJ|ANjE?LOj@QRi@ZUNKLO^On@Wr@QRg@TmBJmCTgD\qB^a@JqEjAeAVa@@YCc@IUKmA{@aEsDiCgC_DwCm@c@?SCYDs@@o@Lk@Pi@b@eA|B{EdAgC`AuBZ_@n@c@RSR[Pa@F[Hy@?UNw@|@yB`@aANk@PoAJ}AFIDSCUQOU?QLADYHkAReCRiAHUC?CCEMGK?E?",
+        "start_location": {"lat": -22.8955, "lng": -47.0233},
+        "end_location": {"lat": -22.8311, "lng": -47.0611}
+    }
+
+    payload_criacao = {
+        "vehicle_id": str(veiculo_motorista.id),
+        "origin_address": "Iguatemi Campinas",
+        "destination_address": "Parque dos Jacarandás",
+        "departure_time": "2026-12-31T10:00:00Z",
+        "available_seats": 2,
+        "max_detour_meters": 1000 
+    }
+
+    client.post("/rides/", json=payload_criacao, headers=headers_motorista)
+
+    payload_busca = {
+        "origin_lat": -23.5505, 
+        "origin_lng": -46.6333,
+        "destination_lat": -22.8315,
+        "destination_lng": -47.0615
+    }
+    
+    response = client.post("/rides/search", json=payload_busca, headers=headers_passageiro)
+    
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert len(data) == 0
+
+
+@patch("app.api.routers.ride.buscar_detalhes_da_rota", new_callable=AsyncMock)
+def test_buscar_caronas_falha_direcao_oposta(mock_buscar_detalhes, client, motorista_setup, passageiro_setup):
+    _, veiculo_motorista, headers_motorista = motorista_setup
+    _, headers_passageiro = passageiro_setup
+    
+    
+    mock_buscar_detalhes.return_value = {
+        "origin_address": "Av. Iguatemi, 777 - Vila Brandina, Campinas - SP",
+        "destination_address": "Ac. Publico, 286 - Parque dos Jacarandás, Campinas - SP",
+        "distance_km": 14.58,
+        "duration_mins": 19,
+        "polyline": r"hivjCba`~Gi@xJETGFMBE@eAe@i@[oAm@KHGVBTNLbCj@nB~@^NHPHVC\InA@VFh@X`BAj@Cj@W`AOb@]`ALVHFL@P@Tk@DOHYFUJcA|@eNNgDPsBVgBDsARqB^mFHcBCaAM}@Mi@c@aAkD_FoBcCuB_DcDkEs@eAsBoCaC_Dc@g@uA{AyEmFsAgB[c@k@kAQa@_@oA{BoJcAmEy@_Ds@mBIWAWAi@Di@P}ACc@QWq@Sc@MqAM}C_@g@DYJ_@VUVMb@@h@HVJNl@T`@PxCr@z@Rh@LLNJP@TOv@k@fC[fAWn@g@|@g@f@w@f@qBj@gF`By@ZcMfDkCz@gG`By@R{A`@SLQHwBv@uCfAIPuAb@IB]JkBh@yOrE}PbF_EjA}HzBcHrByNlEuEpAuFzAgCx@}HzBiLhDgHpBaBj@kAj@sAv@}AfAaBrAcAdAw@~@gEzFmCvDqBvCmDzEcF`HoAhBaBhCcAvA[d@w@rAe@lAy@zBa@hBYjBSlBIpBEnBOpLWtRQ|D_@tAQlAQhAu@nF[bBITm@jDwAdIe@jDSvBMxBQhFE|B@pEBxBN~CZjFb@`EAXBXJ|ANjE?LOj@QRi@ZUNKLO^On@Wr@QRg@TmBJmCTgD\qB^a@JqEjAeAVa@@YCc@IUKmA{@aEsDiCgC_DwCm@c@?SCYDs@@o@Lk@Pi@b@eA|B{EdAgC`AuBZ_@n@c@RSR[Pa@F[Hy@?UNw@|@yB`@aANk@PoAJ}AFIDSCUQOU?QLADYHkAReCRiAHUC?CCEMGK?E?",
+        "start_location": {"lat": -22.8955, "lng": -47.0233},
+        "end_location": {"lat": -22.8311, "lng": -47.0611}
+    }
+
+    payload_criacao = {
+        "vehicle_id": str(veiculo_motorista.id),
+        "origin_address": "Iguatemi Campinas",
+        "destination_address": "Parque dos Jacarandás",
+        "departure_time": "2026-12-31T10:00:00Z",
+        "available_seats": 2,
+        "max_detour_meters": 1000 
+    }
+
+
+    client.post("/rides/", json=payload_criacao, headers=headers_motorista)
+
+    payload_busca = {
+        "origin_lat": -22.8315,
+        "origin_lng": -47.0615,
+        "destination_lat": -22.8950,
+        "destination_lng": -47.0230
+    }
+    
+    response = client.post("/rides/search", json=payload_busca, headers=headers_passageiro)
+    
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert len(data) == 0
