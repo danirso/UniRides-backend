@@ -1,10 +1,12 @@
 import secrets
-from datetime import datetime,timedelta,timezone
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from datetime import datetime, timedelta, timezone
+from fastapi import APIRouter, Depends, status, BackgroundTasks
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
+
 from app.db.database import get_db
 from app.core.config import settings
+from app.core.exceptions import BusinessException
 from app.models.user import User
 from app.schemas.user import UserCreate, UserResponse
 from app.utils.email import send_activation_email
@@ -16,10 +18,12 @@ router = APIRouter(prefix="/auth", tags=["Autenticação"])
 def registrar_usuario(user_in: UserCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == user_in.email).first()
     if user:
-        raise HTTPException(
+        raise BusinessException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="E-mail já cadastrado."
+            code="EMAIL_ALREADY_REGISTERED",
+            message="E-mail já cadastrado."
         )
+        
     token = secrets.token_urlsafe(32)
     expiration = datetime.now(timezone.utc) + timedelta(hours=1)
     
@@ -45,16 +49,18 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     user = db.query(User).filter(User.email == form_data.username).first()
     
     if not user or not verify_password(form_data.password, user.password_hash):
-        raise HTTPException(
+        raise BusinessException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="E-mail ou senha incorretos.",
+            code="INVALID_CREDENTIALS",
+            message="E-mail ou senha incorretos.",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
     if not user.is_email_verified:
-        raise HTTPException(
+        raise BusinessException(
            status_code=status.HTTP_403_FORBIDDEN,
-           detail="Sua conta ainda não foi ativada. Por favor, verifique seu e-mail institucional." 
+           code="EMAIL_NOT_VERIFIED",
+           message="Sua conta ainda não foi ativada. Por favor, verifique seu e-mail institucional." 
         )
         
     token_jwt = create_access_token(data={"sub": str(user.id)})
@@ -66,10 +72,18 @@ def verificar_email(token: str, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.activation_token == token).first()
     
     if not user:
-        raise HTTPException(status_code=400, detail="Token inválido ou já utilizado.")
+        raise BusinessException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            code="INVALID_ACTIVATION_TOKEN",
+            message="Token inválido ou já utilizado."
+        )
     
     if user.token_expires_at and user.token_expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
-        raise HTTPException(status_code=400, detail="O token de ativação expirou. Solicite um novo.")
+        raise BusinessException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            code="EXPIRED_ACTIVATION_TOKEN",
+            message="O token de ativação expirou. Solicite um novo."
+        )
     
     user.is_email_verified = True
     user.activation_token = None
