@@ -42,16 +42,17 @@ async def criar_carona(
         )
 
     detalhes_rota = await buscar_detalhes_da_rota(
-        origem=ride_in.origin_address, 
-        destino=ride_in.destination_address
+        ride_in.origin_lat, ride_in.origin_lng,
+        ride_in.destination_lat, ride_in.destination_lng
     )
 
     nova_carona = Ride(
+        **ride_in.model_dump(exclude={
+            "origin_lat", "origin_lng", 
+            "destination_lat", "destination_lng",
+            "origin_address", "destination_address"
+        }),
         driver_id=current_user.id,
-        vehicle_id=ride_in.vehicle_id,
-        available_seats=ride_in.available_seats,
-        max_detour_meters=ride_in.max_detour_meters,
-        departure_time=ride_in.departure_time,
         origin_address=detalhes_rota["origin_address"],
         destination_address=detalhes_rota["destination_address"],
         origin_geom=f"SRID=4326;POINT({detalhes_rota['start_location']['lng']} {detalhes_rota['start_location']['lat']})",

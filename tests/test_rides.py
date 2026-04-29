@@ -104,6 +104,10 @@ def test_criar_carona_sucesso_201(mock_buscar_detalhes,client, motorista_setup):
         "vehicle_id": str(veiculo.id),
         "origin_address": "Rua X",
         "destination_address": "Rua Y",
+        "origin_lat": -22.8955,
+        "origin_lng": -47.0233,
+        "destination_lat": -22.8311,
+        "destination_lng": -47.0611,
         "departure_time": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
         "available_seats": 2,
         "max_detour_meters":500
@@ -124,6 +128,10 @@ def test_criar_carona_veiculo_invalido_403(client, motorista_setup):
         "vehicle_id": str(uuid.uuid4()),
         "origin_address": "A",
         "destination_address": "B",
+        "origin_lat": -22.8955,
+        "origin_lng": -47.0233,
+        "destination_lat": -22.8311,
+        "destination_lng": -47.0611,
         "departure_time": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
         "available_seats": 2
     }
@@ -138,6 +146,10 @@ def test_criar_carona_capacidade_excedida_400(client, motorista_setup):
         "vehicle_id": str(veiculo.id),
         "origin_address": "A",
         "destination_address": "B",
+        "origin_lat": -22.8955,
+        "origin_lng": -47.0233,
+        "destination_lat": -22.8311,
+        "destination_lng": -47.0611,
         "departure_time": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
         "available_seats": 5 
     }
@@ -211,8 +223,6 @@ def test_cancelar_carona_sucesso_200(client, motorista_setup, carona_agendada):
 # ==========================================
 # TESTES DA QUERY ESPACIAL
 # ========================================== 
-    
-from unittest.mock import patch, AsyncMock
 
 @patch("app.api.routers.ride.buscar_detalhes_da_rota", new_callable=AsyncMock)
 def test_buscar_caronas_sucesso_match_perfeito(mock_buscar_detalhes, client, motorista_setup, passageiro_setup):
@@ -233,6 +243,10 @@ def test_buscar_caronas_sucesso_match_perfeito(mock_buscar_detalhes, client, mot
         "vehicle_id": str(veiculo_motorista.id),
         "origin_address": "Iguatemi Campinas",
         "destination_address": "Parque dos Jacarandás",
+        "origin_lat": -22.8955,
+        "origin_lng": -47.0233,
+        "destination_lat": -22.8311,
+        "destination_lng": -47.0611,
         "departure_time": "2026-12-31T10:00:00Z",
         "available_seats": 2,
         "max_detour_meters": 1000 
@@ -253,12 +267,10 @@ def test_buscar_caronas_sucesso_match_perfeito(mock_buscar_detalhes, client, mot
     assert len(data) >= 1
     assert data[0]["available_seats"] == 2
 
-
 @patch("app.api.routers.ride.buscar_detalhes_da_rota", new_callable=AsyncMock)
 def test_buscar_caronas_falha_distancia(mock_buscar_detalhes, client, motorista_setup, passageiro_setup):
     _, veiculo_motorista, headers_motorista = motorista_setup
     _, headers_passageiro = passageiro_setup
-    
     
     mock_buscar_detalhes.return_value = {
         "origin_address": "Av. Iguatemi, 777 - Vila Brandina, Campinas - SP",
@@ -274,6 +286,10 @@ def test_buscar_caronas_falha_distancia(mock_buscar_detalhes, client, motorista_
         "vehicle_id": str(veiculo_motorista.id),
         "origin_address": "Iguatemi Campinas",
         "destination_address": "Parque dos Jacarandás",
+        "origin_lat": -22.8955,
+        "origin_lng": -47.0233,
+        "destination_lat": -22.8311,
+        "destination_lng": -47.0611,
         "departure_time": "2026-12-31T10:00:00Z",
         "available_seats": 2,
         "max_detour_meters": 1000 
@@ -294,12 +310,10 @@ def test_buscar_caronas_falha_distancia(mock_buscar_detalhes, client, motorista_
     data = response.json()
     assert len(data) == 0
 
-
 @patch("app.api.routers.ride.buscar_detalhes_da_rota", new_callable=AsyncMock)
 def test_buscar_caronas_falha_direcao_oposta(mock_buscar_detalhes, client, motorista_setup, passageiro_setup):
     _, veiculo_motorista, headers_motorista = motorista_setup
     _, headers_passageiro = passageiro_setup
-    
     
     mock_buscar_detalhes.return_value = {
         "origin_address": "Av. Iguatemi, 777 - Vila Brandina, Campinas - SP",
@@ -315,11 +329,14 @@ def test_buscar_caronas_falha_direcao_oposta(mock_buscar_detalhes, client, motor
         "vehicle_id": str(veiculo_motorista.id),
         "origin_address": "Iguatemi Campinas",
         "destination_address": "Parque dos Jacarandás",
+        "origin_lat": -22.8955,
+        "origin_lng": -47.0233,
+        "destination_lat": -22.8311,
+        "destination_lng": -47.0611,
         "departure_time": "2026-12-31T10:00:00Z",
         "available_seats": 2,
         "max_detour_meters": 1000 
     }
-
 
     client.post("/rides/", json=payload_criacao, headers=headers_motorista)
 

@@ -13,6 +13,13 @@ class RideCreate(RideBase):
     vehicle_id: UUID = Field(..., description="ID do veículo utilizado na carona")
     origin_address: str = Field(..., description="Endereço de partida por extenso")
     destination_address: str = Field(..., description="Endereço de chegada por extenso")
+    origin_lat: float
+    origin_lng: float
+    destination_lat: float
+    destination_lng: float
+    departure_time: datetime
+    available_seats: int = Field(..., gt=0)
+    max_detour_meters: int = Field(default=1000)
 
 class RideUpdate(BaseModel):
     available_seats: Optional[int] = Field(None, gt=0)
