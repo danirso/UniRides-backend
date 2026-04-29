@@ -1,29 +1,7 @@
 import pytest
 from fastapi import status
 from app.models.user import User
-from app.core.security import set_password_hash, create_access_token
-
-# ==========================================
-# FIXTURES LOCAIS
-# ==========================================
-
-@pytest.fixture
-def auth_setup(db_session):
-    user = User(
-        name="Usuario Perfil",
-        email="perfil@puccampinas.edu.br",
-        password_hash=set_password_hash("senha_original"),
-        is_email_verified=True,
-        can_drive=False
-    )
-    db_session.add(user)
-    db_session.commit()
-    db_session.refresh(user)
-    
-    token = create_access_token(data={"sub": str(user.id)})
-    headers = {"Authorization": f"Bearer {token}"}
-    
-    return user, headers
+from app.core.security import set_password_hash
 
 # ==========================================
 # TESTES DA ROTA: GET /users/me
@@ -100,7 +78,7 @@ def test_atualizar_perfil_email_existente_400(client, auth_setup, db_session):
     response = client.patch("/users/me", json=payload, headers=headers)
     
     assert response.status_code == status.HTTP_400_BAD_REQUEST
-    assert response.json()["detail"] == "Este e-mail já está em uso por outro usuário."
+    assert response.json()["detail"]["code"] == "EMAIL_ALREADY_IN_USE"
 
 # ==========================================
 # TESTES DA ROTA: DELETE /users/me

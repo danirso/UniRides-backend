@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.core.config import settings
-from app.core.exceptions import BusinessException
+from app.core.exceptions import AuthException
 from app.models.user import User
 from app.schemas.user import UserCreate, UserResponse
 from app.utils.email import send_activation_email
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/auth", tags=["Autenticação"])
 def registrar_usuario(user_in: UserCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == user_in.email).first()
     if user:
-        raise BusinessException(
+        raise AuthException(
             status_code=status.HTTP_400_BAD_REQUEST,
             code="EMAIL_ALREADY_REGISTERED",
             message="E-mail já cadastrado."
@@ -49,7 +49,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     user = db.query(User).filter(User.email == form_data.username).first()
     
     if not user or not verify_password(form_data.password, user.password_hash):
-        raise BusinessException(
+        raise AuthException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             code="INVALID_CREDENTIALS",
             message="E-mail ou senha incorretos.",
@@ -57,7 +57,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         )
     
     if not user.is_email_verified:
-        raise BusinessException(
+        raise AuthException(
            status_code=status.HTTP_403_FORBIDDEN,
            code="EMAIL_NOT_VERIFIED",
            message="Sua conta ainda não foi ativada. Por favor, verifique seu e-mail institucional." 
@@ -72,14 +72,14 @@ def verificar_email(token: str, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.activation_token == token).first()
     
     if not user:
-        raise BusinessException(
+        raise AuthException(
             status_code=status.HTTP_400_BAD_REQUEST, 
             code="INVALID_ACTIVATION_TOKEN",
             message="Token inválido ou já utilizado."
         )
     
     if user.token_expires_at and user.token_expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
-        raise BusinessException(
+        raise AuthException(
             status_code=status.HTTP_400_BAD_REQUEST, 
             code="EXPIRED_ACTIVATION_TOKEN",
             message="O token de ativação expirou. Solicite um novo."
