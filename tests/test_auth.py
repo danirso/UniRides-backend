@@ -41,7 +41,7 @@ def test_register_email_duplicado_400(client, db_session):
     response = client.post("/auth/register", json=payload)
     
     assert response.status_code == status.HTTP_400_BAD_REQUEST
-    assert response.json()["detail"] == "E-mail já cadastrado."
+    assert response.json()["detail"]["code"] == "EMAIL_ALREADY_REGISTERED"
 
 def test_register_payload_invalido_422(client, db_session):
     payload = {
@@ -92,7 +92,7 @@ def test_login_credenciais_invalidas_401(client, db_session):
     response = client.post("/auth/login", data={"username": email, "password": "senha_errada"})
     
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
-    assert response.json()["detail"] == "E-mail ou senha incorretos."
+    assert response.json()["detail"]["code"] == "INVALID_CREDENTIALS"
 
 def test_login_email_nao_verificado_403(client, db_session):
     email = "unverified@puccampinas.edu.br"
@@ -111,6 +111,7 @@ def test_login_email_nao_verificado_403(client, db_session):
     response = client.post("/auth/login", data={"username": email, "password": password})
     
     assert response.status_code == status.HTTP_403_FORBIDDEN
+    assert response.json()["detail"]["code"] == "EMAIL_NOT_VERIFIED"
 
 # ==========================================
 # TESTES DA ROTA: /auth/verify-email
@@ -141,7 +142,7 @@ def test_verify_email_token_invalido_400(client, db_session):
     response = client.get("/auth/verify-email?token=token_inexistente")
     
     assert response.status_code == status.HTTP_400_BAD_REQUEST
-    assert response.json()["detail"] == "Token inválido ou já utilizado."
+    assert response.json()["detail"]["code"] == "INVALID_ACTIVATION_TOKEN"
 
 def test_verify_email_token_expirado_400(client, db_session):
     token = "token_expirado_123"
@@ -162,4 +163,4 @@ def test_verify_email_token_expirado_400(client, db_session):
     response = client.get(f"/auth/verify-email?token={token}")
     
     assert response.status_code == status.HTTP_400_BAD_REQUEST
-    assert response.json()["detail"] == "O token de ativação expirou. Solicite um novo."
+    assert response.json()["detail"]["code"] == "EXPIRED_ACTIVATION_TOKEN"

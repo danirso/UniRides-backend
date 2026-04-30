@@ -4,8 +4,14 @@ from fastapi import HTTPException, status
 from app.core.config import settings
 from decimal import Decimal
 
-async def buscar_detalhes_da_rota(origem: str, destino: str) -> dict:
+async def buscar_detalhes_da_rota(
+    origem_lat: float, origem_lng: float,
+    destino_lat: float, destino_lng: float
+) -> dict:
     url = "https://maps.googleapis.com/maps/api/directions/json"
+    
+    origem = f'{origem_lat},{origem_lng}'
+    destino = f'{destino_lat},{destino_lng}'
     
     params = {
         "origin": origem,
