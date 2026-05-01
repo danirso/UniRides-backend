@@ -11,6 +11,7 @@ from app.core.config import settings
 import app.models.user
 import app.models.vehicle
 import app.models.ride
+import app.models.ride_request
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
