@@ -85,21 +85,6 @@ def test_solicitar_vaga_duplicada_400(client, passageiro_setup, carona_com_vagas
 # TESTES: AÇÕES DO MOTORISTA (ACEITAR/REJEITAR)
 # ==========================================
 
-@pytest.fixture
-def solicitacao_pendente(db_session, carona_com_vagas, passageiro_setup):
-    passageiro, _ = passageiro_setup
-    req = RideRequest(
-        ride_id=carona_com_vagas.id,
-        passenger_id=passageiro.id,
-        passenger_origin="SRID=4326;POINT(-47.0230 -22.8950)",
-        passenger_destination="SRID=4326;POINT(-47.0615 -22.8315)",
-        status=RequestStatus.PENDING
-    )
-    db_session.add(req)
-    db_session.commit()
-    db_session.refresh(req)
-    return req
-
 def test_motorista_aceita_solicitacao_sucesso_200(client, motorista_com_veiculo_setup, carona_com_vagas, solicitacao_pendente, db_session):
     _, _, headers = motorista_com_veiculo_setup
     
@@ -170,3 +155,48 @@ def test_passageiro_cancela_solicitacao_aceita_reembolsa_vaga_200(client, passag
     # Verifica se a vaga foi devolvida ("reembolsada") para a carona
     db_session.refresh(carona_com_vagas)
     assert carona_com_vagas.available_seats == vagas_apos_aceite + 1
+    
+# ==========================================
+# TESTES: GET /rides/{ride_id}/requests (Visão do Motorista)
+# ==========================================
+
+def test_listar_solicitacoes_da_carona_sucesso_200(client, motorista_com_veiculo_setup, carona_com_vagas, solicitacao_pendente):
+    _, _, headers = motorista_com_veiculo_setup
+    
+    response = client.get(f"/rides/{carona_com_vagas.id}/list-requests", headers=headers)
+    
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert len(data) == 1
+    
+    assert data[0]["id"] == str(solicitacao_pendente.id)
+    
+    assert "passenger" in data[0]
+    assert "name" in data[0]["passenger"]
+
+def test_listar_solicitacoes_nao_sendo_o_motorista_403(client, passageiro_setup, carona_com_vagas):
+    _, headers = passageiro_setup
+    
+    response = client.get(f"/rides/{carona_com_vagas.id}/list-requests", headers=headers)
+    
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+    assert response.json()["detail"]["code"] == "ACCESS_DENIED"
+
+# ==========================================
+# TESTES: GET /requests/me (Visão do Passageiro)
+# ==========================================
+
+def test_listar_minhas_solicitacoes_sucesso_200(client, passageiro_setup, carona_com_vagas, solicitacao_pendente):
+    _, headers = passageiro_setup
+    
+    response = client.get("/rides/requests/me", headers=headers)
+    
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert len(data) == 1
+    
+    assert data[0]["id"] == str(solicitacao_pendente.id)
+    
+    assert "ride" in data[0]
+    assert "origin_address" in data[0]["ride"]
+    assert "destination_address" in data[0]["ride"]

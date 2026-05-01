@@ -1,6 +1,7 @@
 import enum
 import uuid
 from sqlalchemy import Column, ForeignKey, Enum, DateTime, func
+from sqlalchemy.orm import relationship
 from geoalchemy2 import Geometry
 from sqlalchemy.dialects.postgresql import UUID
 from app.db.database import Base
@@ -25,3 +26,6 @@ class RideRequest(Base):
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    passenger = relationship("User", foreign_keys=[passenger_id])
+    ride = relationship("Ride", foreign_keys=[ride_id], overlaps="requests")

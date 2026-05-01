@@ -11,6 +11,7 @@ from app.core.config import settings
 from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.models.ride import Ride, RideStatus
+from app.models.ride_request import RideRequest,RequestStatus
 from app.core.security import set_password_hash, create_access_token
 
 TEST_SQLALCHEMY_DATABASE_URL = settings.TEST_DATABASE_URL
@@ -212,3 +213,18 @@ def carona_com_vagas(db_session, motorista_com_veiculo_setup):
     db_session.commit()
     db_session.refresh(ride)
     return ride
+
+@pytest.fixture
+def solicitacao_pendente(db_session, carona_com_vagas, passageiro_setup):
+    passageiro, _ = passageiro_setup
+    req = RideRequest(
+        ride_id=carona_com_vagas.id,
+        passenger_id=passageiro.id,
+        passenger_origin="SRID=4326;POINT(-47.0230 -22.8950)",
+        passenger_destination="SRID=4326;POINT(-47.0615 -22.8315)",
+        status=RequestStatus.PENDING
+    )
+    db_session.add(req)
+    db_session.commit()
+    db_session.refresh(req)
+    return req

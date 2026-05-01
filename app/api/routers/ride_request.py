@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
+from typing import List
 from uuid import UUID
+
 from app.db.database import get_db
 from app.models.user import User
 from app.models.ride import Ride, RideStatus
@@ -8,6 +10,7 @@ from app.models.ride_request import RideRequest, RequestStatus
 from app.schemas.ride_request import RideRequestCreate, RideRequestResponse
 from app.api.dependencies import get_current_user
 from app.core.exceptions import RideException
+from app.schemas.ride_request import RideRequestWithPassenger, RideRequestWithRide
 
 router = APIRouter(prefix="/rides", tags=["Solicitação de caronas"])
 
@@ -143,3 +146,34 @@ def rejeitar_solicitacao(
     #TODO: Notificar passageiro da rejeição
     
     return solicitacao
+
+@router.get("/{ride_id}/list-requests", response_model=List[RideRequestWithPassenger])
+def listar_solicitacoes_da_carona(
+    ride_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    ride = db.query(Ride).filter(Ride.id == ride_id).first()
+    
+    if not ride:
+        raise RideException(status_code=404, code="RIDE_NOT_FOUND", message="Carona não encontrada.")
+        
+    if ride.driver_id != current_user.id:
+        raise RideException(status_code=403, code="ACCESS_DENIED", message="Apenas o motorista pode ver as solicitações desta carona.")
+
+    solicitacoes = db.query(RideRequest).options(
+        joinedload(RideRequest.passenger)
+    ).filter(RideRequest.ride_id == ride_id).all()
+    
+    return solicitacoes
+
+@router.get("/requests/me", response_model=List[RideRequestWithRide])
+def listar_minhas_solicitacoes(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    solicitacoes = db.query(RideRequest).options(
+        joinedload(RideRequest.ride)
+    ).filter(RideRequest.passenger_id == current_user.id).all()
+    
+    return solicitacoes
