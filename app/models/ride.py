@@ -40,6 +40,7 @@ class Ride(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     driver = relationship("User", back_populates="rides")
     vehicle = relationship("Vehicle", back_populates="rides")
+    requests = relationship("RideRequest", cascade="all, delete-orphan")
 
     def formatar_status_para_exibicao(self):
         return self.status.replace("_", " ").capitalize()
