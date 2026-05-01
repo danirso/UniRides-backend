@@ -188,3 +188,27 @@ def passageiro_setup(db_session):
     
     token = create_access_token(data={"sub": str(user.id)})
     return user, {"Authorization": f"Bearer {token}"}
+
+@pytest.fixture
+def carona_com_vagas(db_session, motorista_com_veiculo_setup):
+    user, veiculo, _ = motorista_com_veiculo_setup
+    
+    ride = Ride(
+        driver_id=user.id,
+        vehicle_id=veiculo.id,
+        origin_address="Origem",
+        destination_address="Destino",
+        distance_km=10.0,
+        route_polyline="Polyline",
+        estimated_duration_mins=30,
+        departure_time=datetime.now(timezone.utc) + timedelta(hours=2),
+        available_seats=2,
+        status=RideStatus.SCHEDULED,
+        origin_geom="SRID=4326;POINT(-47.0233 -22.8955)",
+        destination_geom="SRID=4326;POINT(-47.0611 -22.8311)",
+        route_geom="SRID=4326;LINESTRING(-47.0233 -22.8955, -47.0611 -22.8311)"
+    )
+    db_session.add(ride)
+    db_session.commit()
+    db_session.refresh(ride)
+    return ride
