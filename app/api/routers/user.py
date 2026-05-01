@@ -1,9 +1,11 @@
 import secrets
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, Depends, status, BackgroundTasks
 from sqlalchemy.orm import Session
+
 from app.db.database import get_db
+from app.core.exceptions import UserException
 from app.models.user import User
 from app.schemas.user import UserResponse, UserUpdate
 from app.api.dependencies import get_current_user
@@ -33,7 +35,11 @@ def Atualizar_Perfil(
     if "email" in update_data and update_data["email"] != current_user.email:
         existing_user = db.query(User).filter(User.email == update_data["email"]).first()
         if existing_user:
-            raise HTTPException(status_code=400, detail="Este e-mail já está em uso por outro usuário.")
+            raise UserException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                code="EMAIL_ALREADY_IN_USE",
+                message="Este e-mail já está em uso por outro usuário."
+            )
         
         email_changed = True
         update_data["is_email_verified"] = False

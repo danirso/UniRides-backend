@@ -2,90 +2,59 @@ import pytest
 import uuid
 from datetime import datetime, timedelta, timezone
 from fastapi import status
-from app.models.user import User
-from app.models.vehicle import Vehicle
-from app.models.ride import Ride, RideStatus
-from app.core.security import set_password_hash, create_access_token
+from unittest.mock import patch, AsyncMock
 
-# ==========================================
-# FIXTURES
-# ==========================================
-
-@pytest.fixture
-def motorista_setup(db_session):
-    user = User(
-        name="Motorista Carona",
-        email="driver@puccampinas.edu.br",
-        password_hash=set_password_hash("123"),
-        is_email_verified=True,
-        can_drive=True
-    )
-    db_session.add(user)
-    db_session.commit()
-    db_session.refresh(user)
-    
-    veiculo = Vehicle(
-        plate="ABC1234",
-        brand="VW",
-        model="Polo",
-        color="Branco",
-        capacity=3,
-        owner_id=user.id
-    )
-    db_session.add(veiculo)
-    db_session.commit()
-    db_session.refresh(veiculo)
-    
-    token = create_access_token(data={"sub": str(user.id)})
-    headers = {"Authorization": f"Bearer {token}"}
-    
-    return user, veiculo, headers
-
-@pytest.fixture
-def carona_agendada(db_session, motorista_setup):
-    user, veiculo, _ = motorista_setup
-    
-    ride = Ride(
-        driver_id=user.id,
-        vehicle_id=veiculo.id,
-        start_point="Campus I",
-        end_point="Centro",
-        departure_time=datetime.now(timezone.utc) + timedelta(hours=2),
-        available_seats=2,
-        status=RideStatus.SCHEDULED
-    )
-    db_session.add(ride)
-    db_session.commit()
-    db_session.refresh(ride)
-    return ride
+from app.models.ride import RideStatus
 
 # ==========================================
 # TESTES DA ROTA: POST /rides/
 # ==========================================
 
-def test_criar_carona_sucesso_201(client, motorista_setup):
-    _, veiculo, headers = motorista_setup
+@patch("app.api.routers.ride.buscar_detalhes_da_rota", new_callable=AsyncMock)
+def test_criar_carona_sucesso_201(mock_buscar_detalhes,client, motorista_com_veiculo_setup):
+    _, veiculo, headers = motorista_com_veiculo_setup
+    
+    mock_buscar_detalhes.return_value = {
+        "origin_address": "Av. Iguatemi, 777 - Vila Brandina, Campinas - SP",
+        "destination_address": "Ac. Publico, 286 - Parque dos Jacarandás, Campinas - SP",
+        "distance_km": 14.58,
+        "duration_mins": 19,
+        "polyline": r"hivjCba`~Gi@xJETGFMBE@eAe@i@[oAm@KHGVBTNLbCj@nB~@^NHPHVC\InA@VFh@X`BAj@Cj@W`AOb@]`ALVHFL@P@Tk@DOHYFUJcA|@eNNgDPsBVgBDsARqB^mFHcBCaAM}@Mi@c@aAkD_FoBcCuB_DcDkEs@eAsBoCaC_Dc@g@uA{AyEmFsAgB[c@k@kAQa@_@oA{BoJcAmEy@_Ds@mBIWAWAi@Di@P}ACc@QWq@Sc@MqAM}C_@g@DYJ_@VUVMb@@h@HVJNl@T`@PxCr@z@Rh@LLNJP@TOv@k@fC[fAWn@g@|@g@f@w@f@qBj@gF`By@ZcMfDkCz@gG`By@R{A`@SLQHwBv@uCfAIPuAb@IB]JkBh@yOrE}PbF_EjA}HzBcHrByNlEuEpAuFzAgCx@}HzBiLhDgHpBaBj@kAj@sAv@}AfAaBrAcAdAw@~@gEzFmCvDqBvCmDzEcF`HoAhBaBhCcAvA[d@w@rAe@lAy@zBa@hBYjBSlBIpBEnBOpLWtRQ|D_@tAQlAQhAu@nF[bBITm@jDwAdIe@jDSvBMxBQhFE|B@pEBxBN~CZjFb@`EAXBXJ|ANjE?LOj@QRi@ZUNKLO^On@Wr@QRg@TmBJmCTgD\qB^a@JqEjAeAVa@@YCc@IUKmA{@aEsDiCgC_DwCm@c@?SCYDs@@o@Lk@Pi@b@eA|B{EdAgC`AuBZ_@n@c@RSR[Pa@F[Hy@?UNw@|@yB`@aANk@PoAJ}AFIDSCUQOU?QLADYHkAReCRiAHUC?CCEMGK?E?",
+        "start_location": {"lat": -22.8955, "lng": -47.0233},
+        "end_location": {"lat": -22.8311, "lng": -47.0611}
+    }
+    
     payload = {
         "vehicle_id": str(veiculo.id),
-        "start_point": "Campus I",
-        "end_point": "Dom Pedro",
+        "origin_address": "Rua X",
+        "destination_address": "Rua Y",
+        "origin_lat": -22.8955,
+        "origin_lng": -47.0233,
+        "destination_lat": -22.8311,
+        "destination_lng": -47.0611,
         "departure_time": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
-        "available_seats": 2
+        "available_seats": 2,
+        "max_detour_meters":500
     }
     
     response = client.post("/rides/", json=payload, headers=headers)
     
     assert response.status_code == status.HTTP_201_CREATED
     data = response.json()
-    assert data["start_point"] == payload["start_point"]
+    assert data["distance_km"] == 14.58
     assert data["status"] == RideStatus.SCHEDULED.value
+    mock_buscar_detalhes.assert_called_once()
 
-def test_criar_carona_veiculo_invalido_403(client, motorista_setup):
-    _, _, headers = motorista_setup
+def test_criar_carona_veiculo_invalido_403(client, motorista_com_veiculo_setup):
+    _, _, headers = motorista_com_veiculo_setup
     payload = {
         "vehicle_id": str(uuid.uuid4()),
-        "start_point": "A",
-        "end_point": "B",
+        "origin_address": "A",
+        "destination_address": "B",
+        "origin_lat": -22.8955,
+        "origin_lng": -47.0233,
+        "destination_lat": -22.8311,
+        "destination_lng": -47.0611,
         "departure_time": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
         "available_seats": 2
     }
@@ -93,13 +62,18 @@ def test_criar_carona_veiculo_invalido_403(client, motorista_setup):
     response = client.post("/rides/", json=payload, headers=headers)
     
     assert response.status_code == status.HTTP_403_FORBIDDEN
+    assert response.json()["detail"]["code"] == "INVALID_VEHICLE"
 
-def test_criar_carona_capacidade_excedida_400(client, motorista_setup):
-    _, veiculo, headers = motorista_setup
+def test_criar_carona_capacidade_excedida_400(client, motorista_com_veiculo_setup):
+    _, veiculo, headers = motorista_com_veiculo_setup
     payload = {
         "vehicle_id": str(veiculo.id),
-        "start_point": "A",
-        "end_point": "B",
+        "origin_address": "A",
+        "destination_address": "B",
+        "origin_lat": -22.8955,
+        "origin_lng": -47.0233,
+        "destination_lat": -22.8311,
+        "destination_lng": -47.0611,
         "departure_time": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
         "available_seats": 5 
     }
@@ -107,42 +81,44 @@ def test_criar_carona_capacidade_excedida_400(client, motorista_setup):
     response = client.post("/rides/", json=payload, headers=headers)
     
     assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert response.json()["detail"]["code"] == "CAPACITY_EXCEEDED"
 
 # ==========================================
 # TESTES DA ROTA: PATCH /rides/{id}
 # ==========================================
 
-def test_atualizar_carona_sucesso_200(client, motorista_setup, carona_agendada):
-    _, _, headers = motorista_setup
-    payload = {"end_point": "Novo Destino"}
+def test_atualizar_carona_sucesso_200(client, motorista_com_veiculo_setup, carona_agendada):
+    _, _, headers = motorista_com_veiculo_setup
+    payload = {"destination_address": "Novo Destino"}
     
     response = client.patch(f"/rides/{carona_agendada.id}", json=payload, headers=headers)
     
     assert response.status_code == status.HTTP_200_OK
-    assert response.json()["end_point"] == "Novo Destino"
+    assert response.json()["destination_address"] == "Novo Destino"
 
-def test_atualizar_carona_capacidade_excedida_400(client, motorista_setup, carona_agendada):
-    _, _, headers = motorista_setup
+def test_atualizar_carona_capacidade_excedida_400(client, motorista_com_veiculo_setup, carona_agendada):
+    _, _, headers = motorista_com_veiculo_setup
     payload = {"available_seats": 4}
     
     response = client.patch(f"/rides/{carona_agendada.id}", json=payload, headers=headers)
     
     assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert response.json()["detail"]["code"] == "CAPACITY_EXCEEDED"
 
 # ==========================================
 # TESTES DE TRANSIÇÃO DE ESTADO
 # ==========================================
 
-def test_iniciar_carona_sucesso_200(client, motorista_setup, carona_agendada):
-    _, _, headers = motorista_setup
+def test_iniciar_carona_sucesso_200(client, motorista_com_veiculo_setup, carona_agendada):
+    _, _, headers = motorista_com_veiculo_setup
     
     response = client.post(f"/rides/{carona_agendada.id}/start", headers=headers)
     
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["status"] == RideStatus.IN_PROGRESS.value
 
-def test_iniciar_carona_erro_estado_invalido_400(client, motorista_setup, carona_agendada, db_session):
-    _, _, headers = motorista_setup
+def test_iniciar_carona_erro_estado_invalido_400(client, motorista_com_veiculo_setup, carona_agendada, db_session):
+    _, _, headers = motorista_com_veiculo_setup
     
     carona_agendada.status = RideStatus.IN_PROGRESS
     db_session.commit()
@@ -150,9 +126,10 @@ def test_iniciar_carona_erro_estado_invalido_400(client, motorista_setup, carona
     response = client.post(f"/rides/{carona_agendada.id}/start", headers=headers)
     
     assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert response.json()["detail"]["code"] == "INVALID_STATUS_TRANSITION"
 
-def test_finalizar_carona_sucesso_200(client, motorista_setup, carona_agendada, db_session):
-    _, _, headers = motorista_setup
+def test_finalizar_carona_sucesso_200(client, motorista_com_veiculo_setup, carona_agendada, db_session):
+    _, _, headers = motorista_com_veiculo_setup
     
     carona_agendada.status = RideStatus.IN_PROGRESS
     db_session.commit()
@@ -162,10 +139,143 @@ def test_finalizar_carona_sucesso_200(client, motorista_setup, carona_agendada, 
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["status"] == RideStatus.COMPLETED.value
 
-def test_cancelar_carona_sucesso_200(client, motorista_setup, carona_agendada):
-    _, _, headers = motorista_setup
+def test_cancelar_carona_sucesso_200(client, motorista_com_veiculo_setup, carona_agendada):
+    _, _, headers = motorista_com_veiculo_setup
     
     response = client.post(f"/rides/{carona_agendada.id}/cancel", headers=headers)
     
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["status"] == RideStatus.CANCELED.value
+ 
+# ==========================================
+# TESTES DA QUERY ESPACIAL
+# ========================================== 
+
+@patch("app.api.routers.ride.buscar_detalhes_da_rota", new_callable=AsyncMock)
+def test_buscar_caronas_sucesso_match_perfeito(mock_buscar_detalhes, client, motorista_com_veiculo_setup, passageiro_setup):
+    _, veiculo_motorista, headers_motorista = motorista_com_veiculo_setup
+    _, headers_passageiro = passageiro_setup 
+
+    mock_buscar_detalhes.return_value = {
+        "origin_address": "Av. Iguatemi, 777 - Vila Brandina, Campinas - SP",
+        "destination_address": "Ac. Publico, 286 - Parque dos Jacarandás, Campinas - SP",
+        "distance_km": 14.58,
+        "duration_mins": 19,
+        "polyline": r"hivjCba`~Gi@xJETGFMBE@eAe@i@[oAm@KHGVBTNLbCj@nB~@^NHPHVC\InA@VFh@X`BAj@Cj@W`AOb@]`ALVHFL@P@Tk@DOHYFUJcA|@eNNgDPsBVgBDsARqB^mFHcBCaAM}@Mi@c@aAkD_FoBcCuB_DcDkEs@eAsBoCaC_Dc@g@uA{AyEmFsAgB[c@k@kAQa@_@oA{BoJcAmEy@_Ds@mBIWAWAi@Di@P}ACc@QWq@Sc@MqAM}C_@g@DYJ_@VUVMb@@h@HVJNl@T`@PxCr@z@Rh@LLNJP@TOv@k@fC[fAWn@g@|@g@f@w@f@qBj@gF`By@ZcMfDkCz@gG`By@R{A`@SLQHwBv@uCfAIPuAb@IB]JkBh@yOrE}PbF_EjA}HzBcHrByNlEuEpAuFzAgCx@}HzBiLhDgHpBaBj@kAj@sAv@}AfAaBrAcAdAw@~@gEzFmCvDqBvCmDzEcF`HoAhBaBhCcAvA[d@w@rAe@lAy@zBa@hBYjBSlBIpBEnBOpLWtRQ|D_@tAQlAQhAu@nF[bBITm@jDwAdIe@jDSvBMxBQhFE|B@pEBxBN~CZjFb@`EAXBXJ|ANjE?LOj@QRi@ZUNKLO^On@Wr@QRg@TmBJmCTgD\qB^a@JqEjAeAVa@@YCc@IUKmA{@aEsDiCgC_DwCm@c@?SCYDs@@o@Lk@Pi@b@eA|B{EdAgC`AuBZ_@n@c@RSR[Pa@F[Hy@?UNw@|@yB`@aANk@PoAJ}AFIDSCUQOU?QLADYHkAReCRiAHUC?CCEMGK?E?",
+        "start_location": {"lat": -22.8955, "lng": -47.0233},
+        "end_location": {"lat": -22.8311, "lng": -47.0611}
+    }
+
+    payload_criacao = {
+        "vehicle_id": str(veiculo_motorista.id),
+        "origin_address": "Iguatemi Campinas",
+        "destination_address": "Parque dos Jacarandás",
+        "origin_lat": -22.8955,
+        "origin_lng": -47.0233,
+        "destination_lat": -22.8311,
+        "destination_lng": -47.0611,
+        "departure_time": "2026-12-31T10:00:00Z",
+        "available_seats": 2,
+        "max_detour_meters": 1000 
+    }
+    client.post("/rides/", json=payload_criacao, headers=headers_motorista)
+
+    payload_busca = {
+        "origin_lat": -22.8950, 
+        "origin_lng": -47.0230,
+        "destination_lat": -22.8315, 
+        "destination_lng": -47.0615
+    }
+    
+    response = client.post("/rides/search", json=payload_busca, headers=headers_passageiro)
+    
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert len(data) >= 1
+    assert data[0]["available_seats"] == 2
+
+@patch("app.api.routers.ride.buscar_detalhes_da_rota", new_callable=AsyncMock)
+def test_buscar_caronas_falha_distancia(mock_buscar_detalhes, client, motorista_com_veiculo_setup, passageiro_setup):
+    _, veiculo_motorista, headers_motorista = motorista_com_veiculo_setup
+    _, headers_passageiro = passageiro_setup
+    
+    mock_buscar_detalhes.return_value = {
+        "origin_address": "Av. Iguatemi, 777 - Vila Brandina, Campinas - SP",
+        "destination_address": "Ac. Publico, 286 - Parque dos Jacarandás, Campinas - SP",
+        "distance_km": 14.58,
+        "duration_mins": 19,
+        "polyline": r"hivjCba`~Gi@xJETGFMBE@eAe@i@[oAm@KHGVBTNLbCj@nB~@^NHPHVC\InA@VFh@X`BAj@Cj@W`AOb@]`ALVHFL@P@Tk@DOHYFUJcA|@eNNgDPsBVgBDsARqB^mFHcBCaAM}@Mi@c@aAkD_FoBcCuB_DcDkEs@eAsBoCaC_Dc@g@uA{AyEmFsAgB[c@k@kAQa@_@oA{BoJcAmEy@_Ds@mBIWAWAi@Di@P}ACc@QWq@Sc@MqAM}C_@g@DYJ_@VUVMb@@h@HVJNl@T`@PxCr@z@Rh@LLNJP@TOv@k@fC[fAWn@g@|@g@f@w@f@qBj@gF`By@ZcMfDkCz@gG`By@R{A`@SLQHwBv@uCfAIPuAb@IB]JkBh@yOrE}PbF_EjA}HzBcHrByNlEuEpAuFzAgCx@}HzBiLhDgHpBaBj@kAj@sAv@}AfAaBrAcAdAw@~@gEzFmCvDqBvCmDzEcF`HoAhBaBhCcAvA[d@w@rAe@lAy@zBa@hBYjBSlBIpBEnBOpLWtRQ|D_@tAQlAQhAu@nF[bBITm@jDwAdIe@jDSvBMxBQhFE|B@pEBxBN~CZjFb@`EAXBXJ|ANjE?LOj@QRi@ZUNKLO^On@Wr@QRg@TmBJmCTgD\qB^a@JqEjAeAVa@@YCc@IUKmA{@aEsDiCgC_DwCm@c@?SCYDs@@o@Lk@Pi@b@eA|B{EdAgC`AuBZ_@n@c@RSR[Pa@F[Hy@?UNw@|@yB`@aANk@PoAJ}AFIDSCUQOU?QLADYHkAReCRiAHUC?CCEMGK?E?",
+        "start_location": {"lat": -22.8955, "lng": -47.0233},
+        "end_location": {"lat": -22.8311, "lng": -47.0611}
+    }
+
+    payload_criacao = {
+        "vehicle_id": str(veiculo_motorista.id),
+        "origin_address": "Iguatemi Campinas",
+        "destination_address": "Parque dos Jacarandás",
+        "origin_lat": -22.8955,
+        "origin_lng": -47.0233,
+        "destination_lat": -22.8311,
+        "destination_lng": -47.0611,
+        "departure_time": "2026-12-31T10:00:00Z",
+        "available_seats": 2,
+        "max_detour_meters": 1000 
+    }
+
+    client.post("/rides/", json=payload_criacao, headers=headers_motorista)
+
+    payload_busca = {
+        "origin_lat": -23.5505, 
+        "origin_lng": -46.6333,
+        "destination_lat": -22.8315,
+        "destination_lng": -47.0615
+    }
+    
+    response = client.post("/rides/search", json=payload_busca, headers=headers_passageiro)
+    
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert len(data) == 0
+
+@patch("app.api.routers.ride.buscar_detalhes_da_rota", new_callable=AsyncMock)
+def test_buscar_caronas_falha_direcao_oposta(mock_buscar_detalhes, client, motorista_com_veiculo_setup, passageiro_setup):
+    _, veiculo_motorista, headers_motorista = motorista_com_veiculo_setup
+    _, headers_passageiro = passageiro_setup
+    
+    mock_buscar_detalhes.return_value = {
+        "origin_address": "Av. Iguatemi, 777 - Vila Brandina, Campinas - SP",
+        "destination_address": "Ac. Publico, 286 - Parque dos Jacarandás, Campinas - SP",
+        "distance_km": 14.58,
+        "duration_mins": 19,
+        "polyline": r"hivjCba`~Gi@xJETGFMBE@eAe@i@[oAm@KHGVBTNLbCj@nB~@^NHPHVC\InA@VFh@X`BAj@Cj@W`AOb@]`ALVHFL@P@Tk@DOHYFUJcA|@eNNgDPsBVgBDsARqB^mFHcBCaAM}@Mi@c@aAkD_FoBcCuB_DcDkEs@eAsBoCaC_Dc@g@uA{AyEmFsAgB[c@k@kAQa@_@oA{BoJcAmEy@_Ds@mBIWAWAi@Di@P}ACc@QWq@Sc@MqAM}C_@g@DYJ_@VUVMb@@h@HVJNl@T`@PxCr@z@Rh@LLNJP@TOv@k@fC[fAWn@g@|@g@f@w@f@qBj@gF`By@ZcMfDkCz@gG`By@R{A`@SLQHwBv@uCfAIPuAb@IB]JkBh@yOrE}PbF_EjA}HzBcHrByNlEuEpAuFzAgCx@}HzBiLhDgHpBaBj@kAj@sAv@}AfAaBrAcAdAw@~@gEzFmCvDqBvCmDzEcF`HoAhBaBhCcAvA[d@w@rAe@lAy@zBa@hBYjBSlBIpBEnBOpLWtRQ|D_@tAQlAQhAu@nF[bBITm@jDwAdIe@jDSvBMxBQhFE|B@pEBxBN~CZjFb@`EAXBXJ|ANjE?LOj@QRi@ZUNKLO^On@Wr@QRg@TmBJmCTgD\qB^a@JqEjAeAVa@@YCc@IUKmA{@aEsDiCgC_DwCm@c@?SCYDs@@o@Lk@Pi@b@eA|B{EdAgC`AuBZ_@n@c@RSR[Pa@F[Hy@?UNw@|@yB`@aANk@PoAJ}AFIDSCUQOU?QLADYHkAReCRiAHUC?CCEMGK?E?",
+        "start_location": {"lat": -22.8955, "lng": -47.0233},
+        "end_location": {"lat": -22.8311, "lng": -47.0611}
+    }
+
+    payload_criacao = {
+        "vehicle_id": str(veiculo_motorista.id),
+        "origin_address": "Iguatemi Campinas",
+        "destination_address": "Parque dos Jacarandás",
+        "origin_lat": -22.8955,
+        "origin_lng": -47.0233,
+        "destination_lat": -22.8311,
+        "destination_lng": -47.0611,
+        "departure_time": "2026-12-31T10:00:00Z",
+        "available_seats": 2,
+        "max_detour_meters": 1000 
+    }
+
+    client.post("/rides/", json=payload_criacao, headers=headers_motorista)
+
+    payload_busca = {
+        "origin_lat": -22.8315,
+        "origin_lng": -47.0615,
+        "destination_lat": -22.8950,
+        "destination_lng": -47.0230
+    }
+    
+    response = client.post("/rides/search", json=payload_busca, headers=headers_passageiro)
+    
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert len(data) == 0

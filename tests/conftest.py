@@ -1,24 +1,33 @@
 import pytest
-import os
-from unittest.mock import patch
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
+from fastapi.testclient import TestClient
+from unittest.mock import patch
 
-from app.main import app
 from app.db.database import Base, get_db
+from app.main import app
+from app.core.config import settings
+from app.models.user import User
+from app.models.vehicle import Vehicle
+from app.models.ride import Ride, RideStatus
+from app.core.security import set_password_hash, create_access_token
 
-os.environ["SUPPRESS_SEND"] = "True"
+TEST_SQLALCHEMY_DATABASE_URL = settings.TEST_DATABASE_URL
 
-SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
+if not TEST_SQLALCHEMY_DATABASE_URL:
+    raise RuntimeError("A variável TEST_DATABASE_URL não foi encontrada")
 
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
+
+engine = create_engine(TEST_SQLALCHEMY_DATABASE_URL)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+@pytest.fixture(scope="session", autouse=True)
+def setup_test_db():
+    with engine.connect() as conn:
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS postgis;"))
+        conn.commit()
+    yield
 
 @pytest.fixture(scope="function")
 def db_session():
@@ -30,37 +39,152 @@ def db_session():
         db.close()
         Base.metadata.drop_all(bind=engine)
 
-@pytest.fixture(scope="function")
-def client(db_session):
+@pytest.fixture(scope="module")
+def client():
     def override_get_db():
         try:
-            yield db_session
+            db = TestingSessionLocal()
+            yield db
         finally:
-            pass
+            db.close()
             
     app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as c:
         yield c
 
-@pytest.fixture(scope="function")
-def test_user_verified(client, db_session):
-    from app.models.user import User
-    from app.core.security import set_password_hash
-
+@pytest.fixture(autouse=True)
+def mock_send_email():
+    with patch("fastapi_mail.FastMail.send_message") as mock:
+        yield mock
+        
+@pytest.fixture
+def motorista_com_veiculo_setup(db_session):
     user = User(
-        name="denis",
-        email="test@unirides.com",
-        password_hash=set_password_hash("senha123"),
+        name="Motorista Carona",
+        email="driver@puccampinas.edu.br",
+        password_hash=set_password_hash("123"),
         is_email_verified=True,
+        can_drive=True
     )
-    
     db_session.add(user)
     db_session.commit()
     db_session.refresh(user)
     
-    return user
+    veiculo = Vehicle(
+        plate="ABC1234",
+        brand="VW",
+        model="Polo",
+        color="Branco",
+        capacity=3,
+        owner_id=user.id
+    )
+    db_session.add(veiculo)
+    db_session.commit()
+    db_session.refresh(veiculo)
+    
+    token = create_access_token(data={"sub": str(user.id)})
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    return user, veiculo, headers
 
-@pytest.fixture(autouse=True)
-def block_email_sending():
-    with patch("fastapi_mail.FastMail.send_message") as mock_send:
-        yield mock_send
+@pytest.fixture
+def carona_agendada(db_session, motorista_com_veiculo_setup):
+    user, veiculo, _ = motorista_com_veiculo_setup
+    
+    ride = Ride(
+        driver_id=user.id,
+        vehicle_id=veiculo.id,
+        origin_address="Campus I",
+        destination_address="Centro",
+        distance_km=5.0,
+        route_polyline="Linha Azul Fake",
+        estimated_duration_mins=15,
+        departure_time=datetime.now(timezone.utc) + timedelta(hours=2),
+        available_seats=2,
+        status=RideStatus.SCHEDULED
+    )
+    db_session.add(ride)
+    db_session.commit()
+    db_session.refresh(ride)
+    return ride
+
+@pytest.fixture
+def passageiro_setup(client, db_session):
+    passageiro = User(
+        name="Passageiro Teste",
+        email="passageiro@teste.com",
+        password_hash="hash_qualquer",
+    )
+    db_session.add(passageiro)
+    db_session.commit()
+    
+    token = create_access_token(data={"sub": str(passageiro.id)})
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    return passageiro, headers
+
+@pytest.fixture
+def auth_setup(db_session):
+    user = User(
+        name="Usuario Perfil",
+        email="perfil@puccampinas.edu.br",
+        password_hash=set_password_hash("senha_original"),
+        is_email_verified=True,
+        can_drive=False
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    
+    token = create_access_token(data={"sub": str(user.id)})
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    return user, headers
+
+@pytest.fixture
+def motorista_setup(db_session):
+    user = User(
+        name="Motorista Teste",
+        email="motorista@puccampinas.edu.br",
+        password_hash=set_password_hash("123"),
+        is_email_verified=True,
+        can_drive=True
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    
+    token = create_access_token(data={"sub": str(user.id)})
+    return user, {"Authorization": f"Bearer {token}"}
+
+@pytest.fixture
+def motorista2_setup(db_session):
+    user = User(
+        name="Motorista Teste2",
+        email="motorista2@puccampinas.edu.br",
+        password_hash=set_password_hash("123"),
+        is_email_verified=True,
+        can_drive=True
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    
+    token = create_access_token(data={"sub": str(user.id)})
+    return user, {"Authorization": f"Bearer {token}"}
+
+@pytest.fixture
+def passageiro_setup(db_session):
+    user = User(
+        name="Passageiro Teste",
+        email="passageiro@puccampinas.edu.br",
+        password_hash=set_password_hash("123"),
+        is_email_verified=True,
+        can_drive=False
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    
+    token = create_access_token(data={"sub": str(user.id)})
+    return user, {"Authorization": f"Bearer {token}"}
