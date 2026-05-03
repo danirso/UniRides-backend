@@ -18,7 +18,7 @@ conf = ConnectionConfig(
 
 def send_activation_email(email_to: str, user_name: str, token: str, background_tasks: BackgroundTasks):
     
-    verification_link = f"http://127.0.0.1:8000/auth/verify-email?token={token}"
+    verification_link = f"{settings.API_BASE_URL}/auth/verify-email?token={token}"
     
     html_content = f"""
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
