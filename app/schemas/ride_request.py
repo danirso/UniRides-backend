@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pydantic import BaseModel, ConfigDict
 from uuid import UUID
 from datetime import datetime
@@ -22,6 +24,8 @@ class RideRequestCreate(BaseModel):
     origin_lng: float
     destination_lat: float
     destination_lng: float
+    origin_address: str
+    destination_address: str
 
 class RideRequestResponse(BaseModel):
     id: UUID
@@ -34,6 +38,8 @@ class RideRequestResponse(BaseModel):
     
 class RideRequestWithPassenger(RideRequestResponse):
     passenger: PassengerSnippet
+    origin_address: Optional[str] = None
+    destination_address: Optional[str] = None
     
     model_config = ConfigDict(from_attributes=True)
 
