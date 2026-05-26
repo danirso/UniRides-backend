@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, cast
 from geoalchemy2.types import Geography
@@ -77,7 +77,7 @@ def listar_minhas_caronas(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    return db.query(Ride).filter(Ride.driver_id == current_user.id).all()
+    return db.query(Ride).options(joinedload(Ride.driver)).filter(Ride.driver_id == current_user.id).all()
 
 @router.patch("/{ride_id}", response_model=RideResponse)
 def atualizar_carona(
@@ -236,7 +236,7 @@ def buscar_carona(
     origem_pt = func.ST_SetSRID(func.ST_MakePoint(search_params.origin_lng, search_params.origin_lat), 4326)
     destino_pt = func.ST_SetSRID(func.ST_MakePoint(search_params.destination_lng, search_params.destination_lat), 4326)
 
-    query = select(Ride).where(
+    query = select(Ride).options(joinedload(Ride.driver)).where(
         Ride.status == RideStatus.SCHEDULED,
         Ride.available_seats > 0,
         Ride.departure_time > datetime.now(timezone.utc),

@@ -28,10 +28,17 @@ class RideUpdate(BaseModel):
     origin_address: Optional[str] = None
     destination_address: Optional[str] = None
     vehicle_id: Optional[UUID] = None
-
+    
+class DriverSnippet(BaseModel):
+    id:UUID
+    name:str
+    
+    model_config = ConfigDict(from_attributes=True)
+    
 class RideResponse(RideBase):
     id: UUID
     driver_id: UUID
+    driver: DriverSnippet
     vehicle_id: UUID
     status: str
     origin_address: str

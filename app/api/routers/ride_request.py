@@ -54,6 +54,8 @@ def solicitar_vaga(
         passenger_id=current_user.id,
         passenger_origin=f"SRID=4326;POINT({request_in.origin_lng} {request_in.origin_lat})",
         passenger_destination=f"SRID=4326;POINT({request_in.destination_lng} {request_in.destination_lat})",
+        origin_address=request_in.origin_address,
+        destination_address=request_in.destination_address,
         status=RequestStatus.PENDING
     )
     
