@@ -13,7 +13,9 @@ def test_solicitar_vaga_sucesso_201(client, passageiro_setup, carona_com_vagas):
         "origin_lat": -22.8950,
         "origin_lng": -47.0230,
         "destination_lat": -22.8315,
-        "destination_lng": -47.0615
+        "destination_lng": -47.0615,
+        "origin_address": "Rua Teste, 123 - Campinas, SP",
+        "destination_address": "Av. Destino, 456 - Campinas, SP"
     }
     
     response = client.post(f"/rides/{carona_com_vagas.id}/requests", json=payload, headers=headers)
@@ -33,7 +35,9 @@ def test_solicitar_vaga_carona_cheia_400(client, passageiro_setup, carona_com_va
         "origin_lat": -22.8950,
         "origin_lng": -47.0230,
         "destination_lat": -22.8315,
-        "destination_lng": -47.0615
+        "destination_lng": -47.0615,
+        "origin_address": "Rua Teste, 123 - Campinas, SP",
+        "destination_address": "Av. Destino, 456 - Campinas, SP"
     }
     
     response = client.post(f"/rides/{carona_com_vagas.id}/requests", json=payload, headers=headers)
@@ -48,7 +52,9 @@ def test_solicitar_vaga_motorista_na_propria_carona_400(client, motorista_com_ve
         "origin_lat": -22.8950,
         "origin_lng": -47.0230,
         "destination_lat": -22.8315,
-        "destination_lng": -47.0615
+        "destination_lng": -47.0615,
+        "origin_address": "Rua Teste, 123 - Campinas, SP",
+        "destination_address": "Av. Destino, 456 - Campinas, SP"
     }
     
     response = client.post(f"/rides/{carona_com_vagas.id}/requests", json=payload, headers=headers)
@@ -73,7 +79,9 @@ def test_solicitar_vaga_duplicada_400(client, passageiro_setup, carona_com_vagas
         "origin_lat": -22.8950,
         "origin_lng": -47.0230,
         "destination_lat": -22.8315,
-        "destination_lng": -47.0615
+        "destination_lng": -47.0615,
+        "origin_address": "Rua Teste, 123 - Campinas, SP",
+        "destination_address": "Av. Destino, 456 - Campinas, SP"
     }
     
     response = client.post(f"/rides/{carona_com_vagas.id}/requests", json=payload, headers=headers)
