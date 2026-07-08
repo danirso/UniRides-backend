@@ -3,10 +3,15 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, status, BackgroundTasks
 from sqlalchemy.orm import Session
+from typing import List
+from uuid import UUID
 
 from app.db.database import get_db
 from app.core.exceptions import UserException
 from app.models.user import User
+from app.models.review import Review
+from app.schemas.review import ReviewWithReviewer
+from app.core.exceptions import RideException
 from app.schemas.user import UserResponse, UserUpdate
 from app.api.dependencies import get_current_user
 from app.core.security import set_password_hash
@@ -69,3 +74,29 @@ def Deletar_Perfil(db: Session = Depends(get_db), current_user: User = Depends(g
     db.delete(current_user)
     db.commit()
     return
+
+@router.get("/{user_id}/reviews", response_model=List[ReviewWithReviewer])
+def listar_avaliacoes_recebidas(
+    user_id: UUID,
+    limit: int = 5,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    usuario = db.query(User).filter(User.id == user_id).first()
+    if not usuario:
+        raise RideException(status_code=404, code="USER_NOT_FOUND", message="Usuário não encontrado.")
+
+    reviews = db.query(Review).filter(
+        Review.reviewee_id == user_id
+    ).order_by(Review.created_at.desc()).limit(min(limit, 50)).all()
+
+    return [
+        ReviewWithReviewer(
+            id=r.id,
+            rating=r.rating,
+            comment=r.comment,
+            created_at=r.created_at,
+            reviewer_name=r.reviewer.name
+        )
+        for r in reviews
+    ]

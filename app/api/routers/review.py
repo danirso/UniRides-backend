@@ -2,13 +2,14 @@ from typing import List
 from uuid import UUID
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from app.db.database import get_db
 from app.models.user import User
 from app.models.ride import Ride, RideStatus
 from app.models.ride_request import RideRequest, RequestStatus
 from app.models.review import Review
-from app.schemas.review import ReviewCreate, ReviewResponse, PendingReviewTarget
+from app.schemas.review import ReviewCreate, ReviewResponse, PendingReviewTarget, ReviewWithReviewer
 from app.api.dependencies import get_current_user
 from app.core.exceptions import RideException
 
@@ -54,15 +55,6 @@ def criar_avaliacao(
         if review_in.reviewee_id != ride.driver_id:
             raise RideException(status_code=400, code="INVALID_REVIEWEE", message="Como passageiro, só é possível avaliar o motorista desta carona.")
 
-    ja_avaliou = db.query(Review).filter(
-        Review.ride_id == ride_id,
-        Review.reviewer_id == current_user.id,
-        Review.reviewee_id == review_in.reviewee_id
-    ).first()
-
-    if ja_avaliou:
-        raise RideException(status_code=400, code="DUPLICATE_REVIEW", message="Você já avaliou este usuário nesta carona.")
-
     nova_avaliacao = Review(
         ride_id=ride_id,
         reviewer_id=current_user.id,
@@ -72,10 +64,19 @@ def criar_avaliacao(
     )
     db.add(nova_avaliacao)
 
-    reviewee = db.query(User).filter(User.id == review_in.reviewee_id).first()
-    total_atual = float(reviewee.rating_avg) * reviewee.rating_count
-    reviewee.rating_count += 1
-    reviewee.rating_avg = round((total_atual + review_in.rating) / reviewee.rating_count, 2)
+    try:
+        db.flush() 
+    except IntegrityError:
+        db.rollback()
+        raise RideException(status_code=400, code="DUPLICATE_REVIEW", message="Você já avaliou este usuário nesta carona.")
+
+    db.query(User).filter(User.id == review_in.reviewee_id).update(
+        {
+            "rating_avg": (User.rating_avg * User.rating_count + review_in.rating) / (User.rating_count + 1),
+            "rating_count": User.rating_count + 1,
+        },
+        synchronize_session=False
+    )
 
     db.commit()
     db.refresh(nova_avaliacao)

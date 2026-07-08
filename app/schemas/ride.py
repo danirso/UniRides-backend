@@ -32,7 +32,8 @@ class RideUpdate(BaseModel):
 class DriverSnippet(BaseModel):
     id:UUID
     name:str
-    
+    rating_avg: float = 0.0
+    rating_count: int = 0    
     model_config = ConfigDict(from_attributes=True)
     
 class RideResponse(RideBase):

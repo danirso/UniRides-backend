@@ -29,3 +29,12 @@ class PendingReviewTarget(BaseModel):
     role: str  # "driver" ou "passenger"
 
     model_config = ConfigDict(from_attributes=True)
+    
+class ReviewWithReviewer(BaseModel):
+    id: UUID
+    rating: int
+    comment: Optional[str]
+    created_at: datetime
+    reviewer_name: str
+
+    model_config = ConfigDict(from_attributes=True)
