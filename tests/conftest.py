@@ -110,21 +110,6 @@ def carona_agendada(db_session, motorista_com_veiculo_setup):
     return ride
 
 @pytest.fixture
-def passageiro_setup(client, db_session):
-    passageiro = User(
-        name="Passageiro Teste",
-        email="passageiro@teste.com",
-        password_hash="hash_qualquer",
-    )
-    db_session.add(passageiro)
-    db_session.commit()
-    
-    token = create_access_token(data={"sub": str(passageiro.id)})
-    headers = {"Authorization": f"Bearer {token}"}
-    
-    return passageiro, headers
-
-@pytest.fixture
 def auth_setup(db_session):
     user = User(
         name="Usuario Perfil",
@@ -191,6 +176,23 @@ def passageiro_setup(db_session):
     return user, {"Authorization": f"Bearer {token}"}
 
 @pytest.fixture
+def passageiro2_setup(db_session):
+    user = User(
+        name="Passageiro Teste 2",
+        email="passageiro2@puccampinas.edu.br",
+        password_hash=set_password_hash("123"),
+        is_email_verified=True,
+        can_drive=False
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+
+    token = create_access_token(data={"sub": str(user.id)})
+    return user, {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
 def carona_com_vagas(db_session, motorista_com_veiculo_setup):
     user, veiculo, _ = motorista_com_veiculo_setup
     
@@ -228,3 +230,44 @@ def solicitacao_pendente(db_session, carona_com_vagas, passageiro_setup):
     db_session.commit()
     db_session.refresh(req)
     return req
+
+@pytest.fixture
+def carona_concluida_com_passageiros(db_session, motorista_com_veiculo_setup, passageiro_setup, passageiro2_setup):
+    motorista, veiculo, _ = motorista_com_veiculo_setup
+    passageiro1, _ = passageiro_setup
+    passageiro2, _ = passageiro2_setup
+
+    ride = Ride(
+        driver_id=motorista.id,
+        vehicle_id=veiculo.id,
+        origin_address="Campus I",
+        destination_address="Centro",
+        distance_km=5.0,
+        route_polyline="Linha Azul Fake",
+        estimated_duration_mins=15,
+        departure_time=datetime.now(timezone.utc) - timedelta(hours=2),
+        available_seats=0,
+        status=RideStatus.COMPLETED
+    )
+    db_session.add(ride)
+    db_session.commit()
+    db_session.refresh(ride)
+
+    req1 = RideRequest(
+        ride_id=ride.id,
+        passenger_id=passageiro1.id,
+        passenger_origin="SRID=4326;POINT(-47.0230 -22.8950)",
+        passenger_destination="SRID=4326;POINT(-47.0615 -22.8315)",
+        status=RequestStatus.ACCEPTED
+    )
+    req2 = RideRequest(
+        ride_id=ride.id,
+        passenger_id=passageiro2.id,
+        passenger_origin="SRID=4326;POINT(-47.0230 -22.8950)",
+        passenger_destination="SRID=4326;POINT(-47.0615 -22.8315)",
+        status=RequestStatus.ACCEPTED
+    )
+    db_session.add_all([req1, req2])
+    db_session.commit()
+
+    return ride, motorista, passageiro1, passageiro2

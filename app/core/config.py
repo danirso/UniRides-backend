@@ -1,6 +1,7 @@
 from pydantic_settings import BaseSettings,SettingsConfigDict
 
 class Settings(BaseSettings):
+    ENVIRONMENT: str = "prod"
     API_BASE_URL: str = "http://127.0.0.1:8000"
     DATABASE_URL: str
     SECRET_KEY: str
