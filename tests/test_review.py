@@ -207,3 +207,49 @@ def test_pendencia_vazia_para_carona_nao_concluida(client, motorista_com_veiculo
 
     assert response.status_code == status.HTTP_200_OK
     assert response.json() == []
+    
+# ==========================================
+# TESTES DA ROTA: GET /users/{id}/reviews
+# ==========================================
+
+def test_listar_avaliacoes_recebidas_mais_recentes_primeiro(client, motorista_com_veiculo_setup, passageiro_setup, carona_concluida_com_passageiros):
+    ride, motorista, passageiro1, _ = carona_concluida_com_passageiros
+    _, headers_passageiro = passageiro_setup
+
+    payload = {"reviewee_id": str(motorista.id), "rating": 4, "comment": "Boa viagem"}
+    client.post(f"/rides/{ride.id}/reviews", json=payload, headers=headers_passageiro)
+
+    response = client.get(f"/users/{motorista.id}/reviews", headers=headers_passageiro)
+
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["rating"] == 4
+    assert data[0]["comment"] == "Boa viagem"
+    assert data[0]["reviewer_name"] == "Passageiro Teste"
+
+
+def test_listar_avaliacoes_respeita_limit(client, motorista_com_veiculo_setup, passageiro_setup, carona_concluida_com_passageiros):
+    ride, motorista, _, _ = carona_concluida_com_passageiros
+    _, headers_passageiro = passageiro_setup
+
+    payload = {"reviewee_id": str(motorista.id), "rating": 5}
+    client.post(f"/rides/{ride.id}/reviews", json=payload, headers=headers_passageiro)
+
+    response = client.get(f"/users/{motorista.id}/reviews?limit=0", headers=headers_passageiro)
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json() == []
+
+
+def test_media_correta_apos_duas_avaliacoes_de_reviewers_diferentes(client, db_session, passageiro_setup, carona_concluida_com_passageiros):
+    ride, motorista, passageiro1, passageiro2 = carona_concluida_com_passageiros
+    _, headers_passageiro1 = passageiro_setup
+    headers_passageiro2 = {"Authorization": f"Bearer {create_access_token(data={'sub': str(passageiro2.id)})}"}
+
+    client.post(f"/rides/{ride.id}/reviews", json={"reviewee_id": str(motorista.id), "rating": 5}, headers=headers_passageiro1)
+    client.post(f"/rides/{ride.id}/reviews", json={"reviewee_id": str(motorista.id), "rating": 3}, headers=headers_passageiro2)
+
+    db_session.refresh(motorista)
+    assert motorista.rating_count == 2
+    assert float(motorista.rating_avg) == 4.0
