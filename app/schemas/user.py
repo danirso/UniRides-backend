@@ -40,6 +40,7 @@ class UserResponse(BaseModel):
     is_email_verified: bool = False
     can_drive: bool
     rating_avg: float
+    rating_count: int = 0
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

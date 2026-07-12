@@ -4,10 +4,13 @@ from pydantic import BaseModel, ConfigDict
 from uuid import UUID
 from datetime import datetime
 from app.models.ride_request import RequestStatus
+from app.models.ride import RideStatus
 
 class PassengerSnippet(BaseModel):
     id:UUID
     name:str
+    rating_avg: float = 0.0
+    rating_count: int = 0
     
     model_config = ConfigDict(from_attributes=True)
     
@@ -16,6 +19,7 @@ class RideSnippet(BaseModel):
     origin_address:str
     destination_address:str
     departure_time:datetime
+    status: RideStatus
     
     model_config = ConfigDict(from_attributes=True) 
 
