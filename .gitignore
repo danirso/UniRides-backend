@@ -2,5 +2,6 @@ venv/
 __pycache__/
 .pytest_cache/
 .env
+.idea
 useful_commands.txt
 test_result.txt
