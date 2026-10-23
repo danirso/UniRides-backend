@@ -1,7 +1,7 @@
 fastapi
 uvicorn
 pydantic-settings
-sqlalchemy
+sqlalchemy<2.1
 psycopg2-binary
 geoalchemy2
 passlib
