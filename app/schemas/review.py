@@ -5,9 +5,9 @@ from pydantic import BaseModel, Field, ConfigDict
 
 
 class ReviewCreate(BaseModel):
-    reviewee_id: UUID = Field(..., description="ID do usuário avaliado")
-    rating: int = Field(..., ge=1, le=5, description="Nota de 1 a 5 estrelas")
-    comment: Optional[str] = Field(None, max_length=500, description="Comentário opcional")
+    reviewee_id: UUID = Field(..., description="ID of the participant being reviewed.")
+    rating: int = Field(..., ge=1, le=5, description="Rating from 1 to 5 stars.")
+    comment: Optional[str] = Field(None, max_length=500, description="Optional review comment.")
 
 
 class ReviewResponse(BaseModel):
@@ -23,13 +23,13 @@ class ReviewResponse(BaseModel):
 
 
 class PendingReviewTarget(BaseModel):
-    """Usuário que ainda pode ser avaliado pelo current_user nesta carona."""
+    """Participant the current user can still review for this ride."""
     user_id: UUID
     name: str
-    role: str  # "driver" ou "passenger"
+    role: str  # "driver" or "passenger"
 
     model_config = ConfigDict(from_attributes=True)
-    
+
 class ReviewWithReviewer(BaseModel):
     id: UUID
     rating: int

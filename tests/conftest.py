@@ -4,21 +4,46 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import sessionmaker
 from fastapi.testclient import TestClient
 from unittest.mock import patch
+from urllib.parse import urlsplit
 
-from app.db.database import Base, get_db
-from app.main import app
 from app.core.config import settings
-from app.models.user import User
-from app.models.vehicle import Vehicle
-from app.models.ride import Ride, RideStatus
-from app.models.ride_request import RideRequest,RequestStatus
-from app.core.security import set_password_hash, create_access_token
 
 TEST_SQLALCHEMY_DATABASE_URL = settings.TEST_DATABASE_URL
 
 if not TEST_SQLALCHEMY_DATABASE_URL:
     raise RuntimeError("A variável TEST_DATABASE_URL não foi encontrada")
 
+
+def _supabase_project_ref(database_url: str) -> str | None:
+    parsed = urlsplit(database_url)
+    host = (parsed.hostname or "").lower()
+
+    if host.endswith(".pooler.supabase.com"):
+        username = parsed.username or ""
+        return username.rsplit(".", 1)[-1] if "." in username else None
+
+    if host.endswith(".supabase.co"):
+        parts = host.split(".")
+        return parts[1] if parts[0] == "db" else parts[0]
+
+    return None
+
+
+production_ref = _supabase_project_ref(settings.DATABASE_URL)
+test_ref = _supabase_project_ref(TEST_SQLALCHEMY_DATABASE_URL)
+
+if production_ref and test_ref and production_ref == test_ref:
+    raise RuntimeError("DATABASE_URL e TEST_DATABASE_URL apontam para o mesmo projeto Supabase")
+
+settings.DATABASE_URL = TEST_SQLALCHEMY_DATABASE_URL
+
+from app.db.database import Base, get_db
+from app.main import app
+from app.models.user import User
+from app.models.vehicle import Vehicle
+from app.models.ride import Ride, RideStatus
+from app.models.ride_request import RideRequest,RequestStatus
+from app.core.security import set_password_hash, create_access_token
 
 engine = create_engine(TEST_SQLALCHEMY_DATABASE_URL)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -48,7 +73,7 @@ def client():
             yield db
         finally:
             db.close()
-            
+
     app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as c:
         yield c
@@ -57,9 +82,9 @@ def client():
 def mock_send_email():
     with patch("fastapi_mail.FastMail.send_message") as mock:
         yield mock
-        
+
 @pytest.fixture
-def motorista_com_veiculo_setup(db_session):
+def driver_with_vehicle(db_session):
     user = User(
         name="Motorista Carona",
         email="driver@puccampinas.edu.br",
@@ -70,8 +95,8 @@ def motorista_com_veiculo_setup(db_session):
     db_session.add(user)
     db_session.commit()
     db_session.refresh(user)
-    
-    veiculo = Vehicle(
+
+    vehicle = Vehicle(
         plate="ABC1234",
         brand="VW",
         model="Polo",
@@ -79,22 +104,22 @@ def motorista_com_veiculo_setup(db_session):
         capacity=3,
         owner_id=user.id
     )
-    db_session.add(veiculo)
+    db_session.add(vehicle)
     db_session.commit()
-    db_session.refresh(veiculo)
-    
+    db_session.refresh(vehicle)
+
     token = create_access_token(data={"sub": str(user.id)})
     headers = {"Authorization": f"Bearer {token}"}
-    
-    return user, veiculo, headers
+
+    return user, vehicle, headers
 
 @pytest.fixture
-def carona_agendada(db_session, motorista_com_veiculo_setup):
-    user, veiculo, _ = motorista_com_veiculo_setup
-    
+def scheduled_ride(db_session, driver_with_vehicle):
+    user, vehicle, _ = driver_with_vehicle
+
     ride = Ride(
         driver_id=user.id,
-        vehicle_id=veiculo.id,
+        vehicle_id=vehicle.id,
         origin_address="Campus I",
         destination_address="Centro",
         distance_km=5.0,
@@ -121,14 +146,14 @@ def auth_setup(db_session):
     db_session.add(user)
     db_session.commit()
     db_session.refresh(user)
-    
+
     token = create_access_token(data={"sub": str(user.id)})
     headers = {"Authorization": f"Bearer {token}"}
-    
+
     return user, headers
 
 @pytest.fixture
-def motorista_setup(db_session):
+def driver_setup(db_session):
     user = User(
         name="Motorista Teste",
         email="motorista@puccampinas.edu.br",
@@ -139,12 +164,12 @@ def motorista_setup(db_session):
     db_session.add(user)
     db_session.commit()
     db_session.refresh(user)
-    
+
     token = create_access_token(data={"sub": str(user.id)})
     return user, {"Authorization": f"Bearer {token}"}
 
 @pytest.fixture
-def motorista2_setup(db_session):
+def second_driver_setup(db_session):
     user = User(
         name="Motorista Teste2",
         email="motorista2@puccampinas.edu.br",
@@ -155,12 +180,12 @@ def motorista2_setup(db_session):
     db_session.add(user)
     db_session.commit()
     db_session.refresh(user)
-    
+
     token = create_access_token(data={"sub": str(user.id)})
     return user, {"Authorization": f"Bearer {token}"}
 
 @pytest.fixture
-def passageiro_setup(db_session):
+def passenger_setup(db_session):
     user = User(
         name="Passageiro Teste",
         email="passageiro@puccampinas.edu.br",
@@ -171,12 +196,12 @@ def passageiro_setup(db_session):
     db_session.add(user)
     db_session.commit()
     db_session.refresh(user)
-    
+
     token = create_access_token(data={"sub": str(user.id)})
     return user, {"Authorization": f"Bearer {token}"}
 
 @pytest.fixture
-def passageiro2_setup(db_session):
+def second_passenger_setup(db_session):
     user = User(
         name="Passageiro Teste 2",
         email="passageiro2@puccampinas.edu.br",
@@ -193,12 +218,12 @@ def passageiro2_setup(db_session):
 
 
 @pytest.fixture
-def carona_com_vagas(db_session, motorista_com_veiculo_setup):
-    user, veiculo, _ = motorista_com_veiculo_setup
-    
+def ride_with_available_seats(db_session, driver_with_vehicle):
+    user, vehicle, _ = driver_with_vehicle
+
     ride = Ride(
         driver_id=user.id,
-        vehicle_id=veiculo.id,
+        vehicle_id=vehicle.id,
         origin_address="Origem",
         destination_address="Destino",
         distance_km=10.0,
@@ -217,11 +242,11 @@ def carona_com_vagas(db_session, motorista_com_veiculo_setup):
     return ride
 
 @pytest.fixture
-def solicitacao_pendente(db_session, carona_com_vagas, passageiro_setup):
-    passageiro, _ = passageiro_setup
+def pending_ride_request(db_session, ride_with_available_seats, passenger_setup):
+    passenger, _ = passenger_setup
     req = RideRequest(
-        ride_id=carona_com_vagas.id,
-        passenger_id=passageiro.id,
+        ride_id=ride_with_available_seats.id,
+        passenger_id=passenger.id,
         passenger_origin="SRID=4326;POINT(-47.0230 -22.8950)",
         passenger_destination="SRID=4326;POINT(-47.0615 -22.8315)",
         status=RequestStatus.PENDING
@@ -232,14 +257,14 @@ def solicitacao_pendente(db_session, carona_com_vagas, passageiro_setup):
     return req
 
 @pytest.fixture
-def carona_concluida_com_passageiros(db_session, motorista_com_veiculo_setup, passageiro_setup, passageiro2_setup):
-    motorista, veiculo, _ = motorista_com_veiculo_setup
-    passageiro1, _ = passageiro_setup
-    passageiro2, _ = passageiro2_setup
+def completed_ride_with_passengers(db_session, driver_with_vehicle, passenger_setup, second_passenger_setup):
+    driver, vehicle, _ = driver_with_vehicle
+    first_passenger, _ = passenger_setup
+    second_passenger, _ = second_passenger_setup
 
     ride = Ride(
-        driver_id=motorista.id,
-        vehicle_id=veiculo.id,
+        driver_id=driver.id,
+        vehicle_id=vehicle.id,
         origin_address="Campus I",
         destination_address="Centro",
         distance_km=5.0,
@@ -255,14 +280,14 @@ def carona_concluida_com_passageiros(db_session, motorista_com_veiculo_setup, pa
 
     req1 = RideRequest(
         ride_id=ride.id,
-        passenger_id=passageiro1.id,
+        passenger_id=first_passenger.id,
         passenger_origin="SRID=4326;POINT(-47.0230 -22.8950)",
         passenger_destination="SRID=4326;POINT(-47.0615 -22.8315)",
         status=RequestStatus.ACCEPTED
     )
     req2 = RideRequest(
         ride_id=ride.id,
-        passenger_id=passageiro2.id,
+        passenger_id=second_passenger.id,
         passenger_origin="SRID=4326;POINT(-47.0230 -22.8950)",
         passenger_destination="SRID=4326;POINT(-47.0615 -22.8315)",
         status=RequestStatus.ACCEPTED
@@ -270,4 +295,4 @@ def carona_concluida_com_passageiros(db_session, motorista_com_veiculo_setup, pa
     db_session.add_all([req1, req2])
     db_session.commit()
 
-    return ride, motorista, passageiro1, passageiro2
+    return ride, driver, first_passenger, second_passenger

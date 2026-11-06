@@ -4,18 +4,18 @@ from fastapi import HTTPException, status
 from app.core.config import settings
 from decimal import Decimal
 
-async def buscar_detalhes_da_rota(
-    origem_lat: float, origem_lng: float,
-    destino_lat: float, destino_lng: float
+async def fetch_route_details(
+    origin_lat: float, origin_lng: float,
+    destination_lat: float, destination_lng: float
 ) -> dict:
     url = "https://maps.googleapis.com/maps/api/directions/json"
-    
-    origem = f'{origem_lat},{origem_lng}'
-    destino = f'{destino_lat},{destino_lng}'
-    
+
+    origin = f'{origin_lat},{origin_lng}'
+    destination = f'{destination_lat},{destination_lng}'
+
     params = {
-        "origin": origem,
-        "destination": destino,
+        "origin": origin,
+        "destination": destination,
         "key": settings.GOOGLE_MAPS_API_KEY,
         "language": "pt-BR"
     }
@@ -31,32 +31,32 @@ async def buscar_detalhes_da_rota(
 
         if data.get("status") != "OK":
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, 
+                status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Não foi possível localizar os endereços fornecidos."
             )
 
         route = data["routes"][0]
         leg = route["legs"][0]
 
-        # Dados brutos
-        distancia_km = Decimal(leg["distance"]["value"]) / Decimal(1000)
-        duracao_segundos = leg["duration"]["value"]
+        # Raw route metrics
+        distance_km = Decimal(leg["distance"]["value"]) / Decimal(1000)
+        duration_seconds = leg["duration"]["value"]
 
-        # Margem de desvio de 15%
-        duracao_com_margem = int((duracao_segundos / 60) * 1.15)
+        # Add a 15% duration margin
+        duration_with_margin = int((duration_seconds / 60) * 1.15)
 
         return {
             "origin_address": leg["start_address"],
             "destination_address": leg["end_address"],
-            "distance_km": round(distancia_km, 2),
-            "duration_mins": duracao_com_margem,
+            "distance_km": round(distance_km, 2),
+            "duration_mins": duration_with_margin,
             "polyline": route["overview_polyline"]["points"],
             "start_location": leg["start_location"],
             "end_location": leg["end_location"]
         }
-        
+
 def polyline_to_linestring(polyline_str: str) -> str:
-    coordenadas = polyline.decode(polyline_str)
-    pontos_wkt = ", ".join([f"{lon} {lat}" for lat,lon in coordenadas])
-    
-    return f"SRID=4326;LINESTRING({pontos_wkt})"
+    coordinates = polyline.decode(polyline_str)
+    wkt_points = ", ".join([f"{lon} {lat}" for lat,lon in coordinates])
+
+    return f"SRID=4326;LINESTRING({wkt_points})"

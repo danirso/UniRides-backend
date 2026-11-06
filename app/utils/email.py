@@ -10,10 +10,10 @@ conf = ConnectionConfig(
     MAIL_PORT = settings.MAIL_PORT,
     MAIL_SERVER = settings.MAIL_SERVER,
     MAIL_FROM_NAME = settings.MAIL_FROM_NAME,
-    MAIL_STARTTLS = True,
-    MAIL_SSL_TLS = False,
-    USE_CREDENTIALS = True,
-    VALIDATE_CERTS = True
+    MAIL_STARTTLS = settings.MAIL_STARTTLS,
+    MAIL_SSL_TLS = settings.MAIL_SSL_TLS,
+    USE_CREDENTIALS = settings.MAIL_USE_CREDENTIALS,
+    VALIDATE_CERTS = settings.MAIL_VALIDATE_CERTS
 )
 
 def send_activation_email(email_to: str, user_name: str, token: str, background_tasks: BackgroundTasks):

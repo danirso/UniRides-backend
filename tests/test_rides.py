@@ -7,14 +7,14 @@ from unittest.mock import patch, AsyncMock
 from app.models.ride import RideStatus
 
 # ==========================================
-# TESTES DA ROTA: POST /rides/
+# ENDPOINT TESTS: POST /rides/
 # ==========================================
 
-@patch("app.api.routers.ride.buscar_detalhes_da_rota", new_callable=AsyncMock)
-def test_criar_carona_sucesso_201(mock_buscar_detalhes,client, motorista_com_veiculo_setup):
-    _, veiculo, headers = motorista_com_veiculo_setup
-    
-    mock_buscar_detalhes.return_value = {
+@patch("app.api.routers.ride.fetch_route_details", new_callable=AsyncMock)
+def test_create_ride_success_201(mock_fetch_route_details,client, driver_with_vehicle):
+    _, vehicle, headers = driver_with_vehicle
+
+    mock_fetch_route_details.return_value = {
         "origin_address": "Av. Iguatemi, 777 - Vila Brandina, Campinas - SP",
         "destination_address": "Ac. Publico, 286 - Parque dos Jacarandás, Campinas - SP",
         "distance_km": 14.58,
@@ -23,9 +23,9 @@ def test_criar_carona_sucesso_201(mock_buscar_detalhes,client, motorista_com_vei
         "start_location": {"lat": -22.8955, "lng": -47.0233},
         "end_location": {"lat": -22.8311, "lng": -47.0611}
     }
-    
+
     payload = {
-        "vehicle_id": str(veiculo.id),
+        "vehicle_id": str(vehicle.id),
         "origin_address": "Rua X",
         "destination_address": "Rua Y",
         "origin_lat": -22.8955,
@@ -36,17 +36,17 @@ def test_criar_carona_sucesso_201(mock_buscar_detalhes,client, motorista_com_vei
         "available_seats": 2,
         "max_detour_meters":500
     }
-    
+
     response = client.post("/rides/", json=payload, headers=headers)
-    
+
     assert response.status_code == status.HTTP_201_CREATED
     data = response.json()
     assert data["distance_km"] == 14.58
     assert data["status"] == RideStatus.SCHEDULED.value
-    mock_buscar_detalhes.assert_called_once()
+    mock_fetch_route_details.assert_called_once()
 
-def test_criar_carona_veiculo_invalido_403(client, motorista_com_veiculo_setup):
-    _, _, headers = motorista_com_veiculo_setup
+def test_create_ride_with_invalid_vehicle_403(client, driver_with_vehicle):
+    _, _, headers = driver_with_vehicle
     payload = {
         "vehicle_id": str(uuid.uuid4()),
         "origin_address": "A",
@@ -58,16 +58,16 @@ def test_criar_carona_veiculo_invalido_403(client, motorista_com_veiculo_setup):
         "departure_time": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
         "available_seats": 2
     }
-    
+
     response = client.post("/rides/", json=payload, headers=headers)
-    
+
     assert response.status_code == status.HTTP_403_FORBIDDEN
     assert response.json()["detail"]["code"] == "INVALID_VEHICLE"
 
-def test_criar_carona_capacidade_excedida_400(client, motorista_com_veiculo_setup):
-    _, veiculo, headers = motorista_com_veiculo_setup
+def test_create_ride_exceeding_capacity_400(client, driver_with_vehicle):
+    _, vehicle, headers = driver_with_vehicle
     payload = {
-        "vehicle_id": str(veiculo.id),
+        "vehicle_id": str(vehicle.id),
         "origin_address": "A",
         "destination_address": "B",
         "origin_lat": -22.8955,
@@ -75,88 +75,88 @@ def test_criar_carona_capacidade_excedida_400(client, motorista_com_veiculo_setu
         "destination_lat": -22.8311,
         "destination_lng": -47.0611,
         "departure_time": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
-        "available_seats": 5 
+        "available_seats": 5
     }
-    
+
     response = client.post("/rides/", json=payload, headers=headers)
-    
+
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert response.json()["detail"]["code"] == "CAPACITY_EXCEEDED"
 
 # ==========================================
-# TESTES DA ROTA: PATCH /rides/{id}
+# ENDPOINT TESTS: PATCH /rides/{id}
 # ==========================================
 
-def test_atualizar_carona_sucesso_200(client, motorista_com_veiculo_setup, carona_agendada):
-    _, _, headers = motorista_com_veiculo_setup
+def test_update_ride_success_200(client, driver_with_vehicle, scheduled_ride):
+    _, _, headers = driver_with_vehicle
     payload = {"destination_address": "Novo Destino"}
-    
-    response = client.patch(f"/rides/{carona_agendada.id}", json=payload, headers=headers)
-    
+
+    response = client.patch(f"/rides/{scheduled_ride.id}", json=payload, headers=headers)
+
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["destination_address"] == "Novo Destino"
 
-def test_atualizar_carona_capacidade_excedida_400(client, motorista_com_veiculo_setup, carona_agendada):
-    _, _, headers = motorista_com_veiculo_setup
+def test_update_ride_exceeding_capacity_400(client, driver_with_vehicle, scheduled_ride):
+    _, _, headers = driver_with_vehicle
     payload = {"available_seats": 4}
-    
-    response = client.patch(f"/rides/{carona_agendada.id}", json=payload, headers=headers)
-    
+
+    response = client.patch(f"/rides/{scheduled_ride.id}", json=payload, headers=headers)
+
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert response.json()["detail"]["code"] == "CAPACITY_EXCEEDED"
 
 # ==========================================
-# TESTES DE TRANSIÇÃO DE ESTADO
+# RIDE STATUS TRANSITION TESTS
 # ==========================================
 
-def test_iniciar_carona_sucesso_200(client, motorista_com_veiculo_setup, carona_agendada):
-    _, _, headers = motorista_com_veiculo_setup
-    
-    response = client.post(f"/rides/{carona_agendada.id}/start", headers=headers)
-    
+def test_start_ride_success_200(client, driver_with_vehicle, scheduled_ride):
+    _, _, headers = driver_with_vehicle
+
+    response = client.post(f"/rides/{scheduled_ride.id}/start", headers=headers)
+
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["status"] == RideStatus.IN_PROGRESS.value
 
-def test_iniciar_carona_erro_estado_invalido_400(client, motorista_com_veiculo_setup, carona_agendada, db_session):
-    _, _, headers = motorista_com_veiculo_setup
-    
-    carona_agendada.status = RideStatus.IN_PROGRESS
+def test_start_ride_with_invalid_status_400(client, driver_with_vehicle, scheduled_ride, db_session):
+    _, _, headers = driver_with_vehicle
+
+    scheduled_ride.status = RideStatus.IN_PROGRESS
     db_session.commit()
-    
-    response = client.post(f"/rides/{carona_agendada.id}/start", headers=headers)
-    
+
+    response = client.post(f"/rides/{scheduled_ride.id}/start", headers=headers)
+
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert response.json()["detail"]["code"] == "INVALID_STATUS_TRANSITION"
 
-def test_finalizar_carona_sucesso_200(client, motorista_com_veiculo_setup, carona_agendada, db_session):
-    _, _, headers = motorista_com_veiculo_setup
-    
-    carona_agendada.status = RideStatus.IN_PROGRESS
+def test_complete_ride_success_200(client, driver_with_vehicle, scheduled_ride, db_session):
+    _, _, headers = driver_with_vehicle
+
+    scheduled_ride.status = RideStatus.IN_PROGRESS
     db_session.commit()
-    
-    response = client.post(f"/rides/{carona_agendada.id}/complete", headers=headers)
-    
+
+    response = client.post(f"/rides/{scheduled_ride.id}/complete", headers=headers)
+
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["status"] == RideStatus.COMPLETED.value
 
-def test_cancelar_carona_sucesso_200(client, motorista_com_veiculo_setup, carona_agendada):
-    _, _, headers = motorista_com_veiculo_setup
-    
-    response = client.post(f"/rides/{carona_agendada.id}/cancel", headers=headers)
-    
+def test_cancel_ride_success_200(client, driver_with_vehicle, scheduled_ride):
+    _, _, headers = driver_with_vehicle
+
+    response = client.post(f"/rides/{scheduled_ride.id}/cancel", headers=headers)
+
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["status"] == RideStatus.CANCELED.value
- 
+
 # ==========================================
-# TESTES DA QUERY ESPACIAL
-# ========================================== 
+# SPATIAL QUERY TESTS
+# ==========================================
 
-@patch("app.api.routers.ride.buscar_detalhes_da_rota", new_callable=AsyncMock)
-def test_buscar_caronas_sucesso_match_perfeito(mock_buscar_detalhes, client, motorista_com_veiculo_setup, passageiro_setup):
-    _, veiculo_motorista, headers_motorista = motorista_com_veiculo_setup
-    _, headers_passageiro = passageiro_setup 
+@patch("app.api.routers.ride.fetch_route_details", new_callable=AsyncMock)
+def test_search_finds_matching_route(mock_fetch_route_details, client, driver_with_vehicle, passenger_setup):
+    _, driver_vehicle, driver_headers = driver_with_vehicle
+    _, passenger_headers = passenger_setup
 
-    mock_buscar_detalhes.return_value = {
+    mock_fetch_route_details.return_value = {
         "origin_address": "Av. Iguatemi, 777 - Vila Brandina, Campinas - SP",
         "destination_address": "Ac. Publico, 286 - Parque dos Jacarandás, Campinas - SP",
         "distance_km": 14.58,
@@ -166,8 +166,8 @@ def test_buscar_caronas_sucesso_match_perfeito(mock_buscar_detalhes, client, mot
         "end_location": {"lat": -22.8311, "lng": -47.0611}
     }
 
-    payload_criacao = {
-        "vehicle_id": str(veiculo_motorista.id),
+    creation_payload = {
+        "vehicle_id": str(driver_vehicle.id),
         "origin_address": "Iguatemi Campinas",
         "destination_address": "Parque dos Jacarandás",
         "origin_lat": -22.8955,
@@ -176,30 +176,30 @@ def test_buscar_caronas_sucesso_match_perfeito(mock_buscar_detalhes, client, mot
         "destination_lng": -47.0611,
         "departure_time": "2026-12-31T10:00:00Z",
         "available_seats": 2,
-        "max_detour_meters": 1000 
+        "max_detour_meters": 1000
     }
-    client.post("/rides/", json=payload_criacao, headers=headers_motorista)
+    client.post("/rides/", json=creation_payload, headers=driver_headers)
 
-    payload_busca = {
-        "origin_lat": -22.8950, 
+    search_payload = {
+        "origin_lat": -22.8950,
         "origin_lng": -47.0230,
-        "destination_lat": -22.8315, 
+        "destination_lat": -22.8315,
         "destination_lng": -47.0615
     }
-    
-    response = client.post("/rides/search", json=payload_busca, headers=headers_passageiro)
-    
+
+    response = client.post("/rides/search", json=search_payload, headers=passenger_headers)
+
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
     assert len(data) >= 1
     assert data[0]["available_seats"] == 2
 
-@patch("app.api.routers.ride.buscar_detalhes_da_rota", new_callable=AsyncMock)
-def test_buscar_caronas_falha_distancia(mock_buscar_detalhes, client, motorista_com_veiculo_setup, passageiro_setup):
-    _, veiculo_motorista, headers_motorista = motorista_com_veiculo_setup
-    _, headers_passageiro = passageiro_setup
-    
-    mock_buscar_detalhes.return_value = {
+@patch("app.api.routers.ride.fetch_route_details", new_callable=AsyncMock)
+def test_search_excludes_points_outside_route_distance(mock_fetch_route_details, client, driver_with_vehicle, passenger_setup):
+    _, driver_vehicle, driver_headers = driver_with_vehicle
+    _, passenger_headers = passenger_setup
+
+    mock_fetch_route_details.return_value = {
         "origin_address": "Av. Iguatemi, 777 - Vila Brandina, Campinas - SP",
         "destination_address": "Ac. Publico, 286 - Parque dos Jacarandás, Campinas - SP",
         "distance_km": 14.58,
@@ -209,8 +209,8 @@ def test_buscar_caronas_falha_distancia(mock_buscar_detalhes, client, motorista_
         "end_location": {"lat": -22.8311, "lng": -47.0611}
     }
 
-    payload_criacao = {
-        "vehicle_id": str(veiculo_motorista.id),
+    creation_payload = {
+        "vehicle_id": str(driver_vehicle.id),
         "origin_address": "Iguatemi Campinas",
         "destination_address": "Parque dos Jacarandás",
         "origin_lat": -22.8955,
@@ -219,30 +219,30 @@ def test_buscar_caronas_falha_distancia(mock_buscar_detalhes, client, motorista_
         "destination_lng": -47.0611,
         "departure_time": "2026-12-31T10:00:00Z",
         "available_seats": 2,
-        "max_detour_meters": 1000 
+        "max_detour_meters": 1000
     }
 
-    client.post("/rides/", json=payload_criacao, headers=headers_motorista)
+    client.post("/rides/", json=creation_payload, headers=driver_headers)
 
-    payload_busca = {
-        "origin_lat": -23.5505, 
+    search_payload = {
+        "origin_lat": -23.5505,
         "origin_lng": -46.6333,
         "destination_lat": -22.8315,
         "destination_lng": -47.0615
     }
-    
-    response = client.post("/rides/search", json=payload_busca, headers=headers_passageiro)
-    
+
+    response = client.post("/rides/search", json=search_payload, headers=passenger_headers)
+
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
     assert len(data) == 0
 
-@patch("app.api.routers.ride.buscar_detalhes_da_rota", new_callable=AsyncMock)
-def test_buscar_caronas_falha_direcao_oposta(mock_buscar_detalhes, client, motorista_com_veiculo_setup, passageiro_setup):
-    _, veiculo_motorista, headers_motorista = motorista_com_veiculo_setup
-    _, headers_passageiro = passageiro_setup
-    
-    mock_buscar_detalhes.return_value = {
+@patch("app.api.routers.ride.fetch_route_details", new_callable=AsyncMock)
+def test_search_excludes_opposite_travel_direction(mock_fetch_route_details, client, driver_with_vehicle, passenger_setup):
+    _, driver_vehicle, driver_headers = driver_with_vehicle
+    _, passenger_headers = passenger_setup
+
+    mock_fetch_route_details.return_value = {
         "origin_address": "Av. Iguatemi, 777 - Vila Brandina, Campinas - SP",
         "destination_address": "Ac. Publico, 286 - Parque dos Jacarandás, Campinas - SP",
         "distance_km": 14.58,
@@ -252,8 +252,8 @@ def test_buscar_caronas_falha_direcao_oposta(mock_buscar_detalhes, client, motor
         "end_location": {"lat": -22.8311, "lng": -47.0611}
     }
 
-    payload_criacao = {
-        "vehicle_id": str(veiculo_motorista.id),
+    creation_payload = {
+        "vehicle_id": str(driver_vehicle.id),
         "origin_address": "Iguatemi Campinas",
         "destination_address": "Parque dos Jacarandás",
         "origin_lat": -22.8955,
@@ -262,20 +262,20 @@ def test_buscar_caronas_falha_direcao_oposta(mock_buscar_detalhes, client, motor
         "destination_lng": -47.0611,
         "departure_time": "2026-12-31T10:00:00Z",
         "available_seats": 2,
-        "max_detour_meters": 1000 
+        "max_detour_meters": 1000
     }
 
-    client.post("/rides/", json=payload_criacao, headers=headers_motorista)
+    client.post("/rides/", json=creation_payload, headers=driver_headers)
 
-    payload_busca = {
+    search_payload = {
         "origin_lat": -22.8315,
         "origin_lng": -47.0615,
         "destination_lat": -22.8950,
         "destination_lng": -47.0230
     }
-    
-    response = client.post("/rides/search", json=payload_busca, headers=headers_passageiro)
-    
+
+    response = client.post("/rides/search", json=search_payload, headers=passenger_headers)
+
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
     assert len(data) == 0

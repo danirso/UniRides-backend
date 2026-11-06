@@ -1,22 +1,36 @@
-from pydantic import BaseModel, EmailStr, field_validator, ConfigDict
+from pydantic import BaseModel, EmailStr, field_validator, ConfigDict, Field
 from typing import Optional
 from uuid import UUID
 from datetime import datetime
+from app.core.config import settings
+
+
+def _is_local_test_email(value: str) -> bool:
+    return (
+        settings.ENVIRONMENT == "dev"
+        and settings.ALLOW_LOCAL_TEST_EMAILS
+        and value.rsplit("@", 1)[-1].lower() == "example.com"
+    )
 
 class UserCreate(BaseModel):
-    name: str
-    email: EmailStr
-    password: str
+    name: str = Field(..., description="Display name.")
+    email: EmailStr = Field(..., description="University email; example.com is also allowed by the local runner.")
+    password: str = Field(..., description="Account password.", json_schema_extra={"writeOnly": True})
     can_drive: bool = False
+
+    model_config = ConfigDict(json_schema_extra={"examples": [{
+        "name": "Local Driver", "email": "driver@example.com",
+        "password": "LocalDemo123!", "can_drive": True,
+    }]})
 
     @field_validator("email")
     @classmethod
     def validate_email(cls, value: str) -> str:
         domain = ("@puccampinas.edu.br","@puc-campinas.edu.br","@dac.unicamp.br")
-        if not value.endswith(domain):
+        if not value.endswith(domain) and not _is_local_test_email(value):
             raise ValueError("Email inválido, por favor utilize seu email institucional")
         return value.lower()
-    
+
 class UserUpdate(BaseModel):
     name: Optional[str] = None
     email: Optional[EmailStr] = None
@@ -29,10 +43,10 @@ class UserUpdate(BaseModel):
         if value is None:
             return value
         domain = "@puccampinas.edu.br"
-        if not value.endswith(domain):
+        if not value.endswith(domain) and not _is_local_test_email(value):
             raise ValueError("Email inválido, por favor utilize seu email institucional")
         return value.lower()
-    
+
 class UserResponse(BaseModel):
     id: UUID
     name: str

@@ -10,17 +10,26 @@ from app.models.user import User
 from app.schemas.vehicle import VehicleCreate, VehicleResponse, VehicleUpdate
 from app.api.dependencies import get_current_user
 
-router = APIRouter(prefix="/vehicles", tags=["Veículos"])
+router = APIRouter(prefix="/vehicles", tags=["Vehicles"])
 
-@router.post("/", response_model=VehicleResponse, status_code=status.HTTP_201_CREATED)
-def registrar_veiculo(vehicle_in: VehicleCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+@router.post(
+    '/',
+    response_model=VehicleResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary='Register a vehicle',
+    description=(
+        'Register a vehicle for the authenticated driver. The plate must use a supported '
+        'Brazilian format and must be unique.'
+    ),
+)
+def register_vehicle(vehicle_in: VehicleCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if not current_user.can_drive:
         raise VehicleException(
             status_code=status.HTTP_403_FORBIDDEN,
             code="USER_NOT_DRIVER",
             message="Usuário não cadastrado como motorista."
         )
-    
+
     if db.query(Vehicle).filter(Vehicle.plate == vehicle_in.plate).first():
         raise VehicleException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -34,40 +43,61 @@ def registrar_veiculo(vehicle_in: VehicleCreate, db: Session = Depends(get_db), 
     db.refresh(db_vehicle)
     return db_vehicle
 
-@router.get("/", response_model=List[VehicleResponse])
-def listar_veiculos(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+@router.get(
+    '/',
+    response_model=List[VehicleResponse],
+    summary='List my vehicles',
+    description=(
+        'Return vehicles owned by the authenticated user.'
+    ),
+)
+def list_my_vehicles(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     return db.query(Vehicle).filter(Vehicle.owner_id == current_user.id).all()
 
-@router.patch("/{vehicle_id}", response_model=VehicleResponse)
-def atualizar_veiculos(vehicle_id: UUID, vehicle_in: VehicleUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+@router.patch(
+    '/{vehicle_id}',
+    response_model=VehicleResponse,
+    summary='Update my vehicle',
+    description=(
+        'Update a vehicle owned by the authenticated user.'
+    ),
+)
+def update_vehicle(vehicle_id: UUID, vehicle_in: VehicleUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     db_vehicle = db.query(Vehicle).filter(Vehicle.id == vehicle_id, Vehicle.owner_id == current_user.id).first()
-    
+
     if not db_vehicle:
         raise VehicleException(
             status_code=status.HTTP_404_NOT_FOUND,
             code="VEHICLE_NOT_FOUND",
             message="Veículo não encontrado ou acesso negado."
         )
-    
+
     update_data = vehicle_in.model_dump(exclude_unset=True)
-    
+
     for key, value in update_data.items():
         setattr(db_vehicle, key, value)
-        
+
     db.commit()
     db.refresh(db_vehicle)
     return db_vehicle
 
-@router.delete("/{vehicle_id}", status_code=status.HTTP_204_NO_CONTENT)
-def deletar_veiculo(vehicle_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+@router.delete(
+    '/{vehicle_id}',
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary='Delete my vehicle',
+    description=(
+        'Delete a vehicle owned by the authenticated user.'
+    ),
+)
+def delete_vehicle(vehicle_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     db_vehicle = db.query(Vehicle).filter(Vehicle.id == vehicle_id, Vehicle.owner_id == current_user.id).first()
-    
+
     if not db_vehicle:
         raise VehicleException(
             status_code=status.HTTP_404_NOT_FOUND,
             code="VEHICLE_NOT_FOUND",
             message="Veículo não encontrado ou acesso negado."
         )
-    
+
     db.delete(db_vehicle)
     db.commit()
