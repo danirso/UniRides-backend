@@ -12,10 +12,20 @@ from app.schemas.user import UserCreate, UserResponse
 from app.utils.email import send_activation_email
 from app.core.security import set_password_hash, verify_password, create_access_token
 
-router = APIRouter(prefix="/auth", tags=["Autenticação"])
+router = APIRouter(prefix="/auth", tags=["Authentication"])
 
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-def registrar_usuario(user_in: UserCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+@router.post(
+    '/register',
+    response_model=UserResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary='Create an account',
+    description=(
+        'Register a user and send an activation email. With scripts/run-local.sh, use '
+        'driver@example.com or passenger@example.com and open the message in Mailpit at '
+        'http://127.0.0.1:8025. Activate the account before logging in.'
+    ),
+)
+def register_user(user_in: UserCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == user_in.email).first()
     if user:
         raise AuthException(
@@ -23,10 +33,10 @@ def registrar_usuario(user_in: UserCreate, background_tasks: BackgroundTasks, db
             code="EMAIL_ALREADY_REGISTERED",
             message="E-mail já cadastrado."
         )
-        
+
     token = secrets.token_urlsafe(32)
     expiration = datetime.now(timezone.utc) + timedelta(hours=1)
-    
+
     new_user = User(
         name=user_in.name,
         email=user_in.email,
@@ -35,19 +45,27 @@ def registrar_usuario(user_in: UserCreate, background_tasks: BackgroundTasks, db
         activation_token=token,
         token_expires_at=expiration
     )
-    
+
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-    
+
     send_activation_email(new_user.email, new_user.name, token, background_tasks)
-    
+
     return new_user
 
-@router.post("/login")
+@router.post(
+    '/login',
+    summary='Log in',
+    description=(
+        'Submit the registered email in the username form field and the password. Only verified '
+        'accounts can log in. Use the Authorize button to attach the bearer token to subsequent '
+        'requests.'
+    ),
+)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == form_data.username).first()
-    
+
     if not user or not verify_password(form_data.password, user.password_hash):
         raise AuthException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -55,40 +73,47 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
             message="E-mail ou senha incorretos.",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     if not user.is_email_verified:
         raise AuthException(
            status_code=status.HTTP_403_FORBIDDEN,
            code="EMAIL_NOT_VERIFIED",
-           message="Sua conta ainda não foi ativada. Por favor, verifique seu e-mail institucional." 
+           message="Sua conta ainda não foi ativada. Por favor, verifique seu e-mail institucional."
         )
-        
+
     token_jwt = create_access_token(data={"sub": str(user.id)})
-    
+
     return {"access_token": token_jwt, "token_type": "bearer"}
 
-@router.get("/verify-email")
-def verificar_email(token: str, db: Session = Depends(get_db)):
+@router.get(
+    '/verify-email',
+    summary='Activate an email address',
+    description=(
+        'Consume the one-time token from the activation link. Tokens expire after one hour. '
+        'Locally, open the link from the captured Mailpit message.'
+    ),
+)
+def verify_email(token: str, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.activation_token == token).first()
-    
+
     if not user:
         raise AuthException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
+            status_code=status.HTTP_400_BAD_REQUEST,
             code="INVALID_ACTIVATION_TOKEN",
             message="Token inválido ou já utilizado."
         )
-    
+
     if user.token_expires_at and user.token_expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
         raise AuthException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
+            status_code=status.HTTP_400_BAD_REQUEST,
             code="EXPIRED_ACTIVATION_TOKEN",
             message="O token de ativação expirou. Solicite um novo."
         )
-    
+
     user.is_email_verified = True
     user.activation_token = None
     user.token_expires_at = None
-    
+
     db.commit()
-    
+
     return {"message": "E-mail verificado com sucesso! Sua conta está ativada."}

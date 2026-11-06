@@ -4,11 +4,12 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 python_bin="${PYTHON_BIN:-venv/bin/python}"
 if ! "$python_bin" -c 'import sys; assert sys.prefix != sys.base_prefix; import uvicorn, alembic, fastapi, sqlalchemy, psycopg2, fastapi_mail' >/dev/null 2>&1; then
-  echo "Verifique o venv e instale requirements-dev.txt antes de iniciar a API." >&2
+  echo "Check the virtual environment and install requirements-dev.txt before starting the API." >&2
   exit 1
 fi
 
 export ENVIRONMENT=dev
+export ALLOW_LOCAL_TEST_EMAILS=true
 export API_BASE_URL=http://127.0.0.1:8000
 export DATABASE_URL=postgresql://local_user:local_password@127.0.0.1:5434/unirides_local
 export TEST_DATABASE_URL=postgresql://test_user:test_password@127.0.0.1:5433/test_db
@@ -27,5 +28,5 @@ export MAIL_VALIDATE_CERTS=true
 
 docker compose -f compose.local.yml up --wait
 "$python_bin" -m alembic upgrade head
-printf 'API: http://127.0.0.1:8000/docs\nE-mails locais: http://127.0.0.1:8025\n'
+printf 'API: http://127.0.0.1:8000/docs\nLocal inbox: http://127.0.0.1:8025\n'
 exec "$python_bin" -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload

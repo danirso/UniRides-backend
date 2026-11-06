@@ -5,17 +5,18 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 python_bin="${PYTHON_BIN:-venv/bin/python}"
 if ! "$python_bin" -c 'import sys; raise SystemExit(sys.prefix == sys.base_prefix)' >/dev/null 2>&1; then
-  echo "Ambiente virtual não encontrado em $python_bin. Crie o venv e instale requirements-dev.txt." >&2
+  echo "No virtual environment found at $python_bin. Create it and install requirements-dev.txt." >&2
   exit 1
 fi
 if ! "$python_bin" -m pytest --version >/dev/null 2>&1; then
-  echo "Pytest não está instalado em $python_bin. Instale requirements-dev.txt nesse ambiente." >&2
+  echo "Pytest is not installed in $python_bin. Install requirements-dev.txt in that environment." >&2
   exit 1
 fi
 
 docker compose -f compose.test.yml up --wait
 
 export ENVIRONMENT=dev
+export ALLOW_LOCAL_TEST_EMAILS=false
 export API_BASE_URL=http://127.0.0.1:8000
 export DATABASE_URL=postgresql://test_user:test_password@127.0.0.1:5433/test_db
 export TEST_DATABASE_URL="$DATABASE_URL"

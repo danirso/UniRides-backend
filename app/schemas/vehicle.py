@@ -4,11 +4,11 @@ from typing import Optional
 from uuid import UUID
 
 class VehicleBase(BaseModel):
-    brand: str = Field(..., description="Marca do veículo")
-    model: str = Field(..., description="Modelo do veículo")
-    color: str = Field(..., description="Cor do veículo")
-    plate: str = Field(..., description="Placa do veículo")
-    capacity: int = Field(..., gt=0, le=8, description="Capacidade máxima física de passageiros")
+    brand: str = Field(..., description="Vehicle brand.")
+    model: str = Field(..., description="Vehicle model.")
+    color: str = Field(..., description="Vehicle color.")
+    plate: str = Field(..., description="Brazilian vehicle plate.")
+    capacity: int = Field(..., gt=0, le=8, description="Maximum passenger capacity.")
 
     @field_validator("plate")
     @classmethod
@@ -19,7 +19,7 @@ class VehicleBase(BaseModel):
         if not re.match(pattern,plate):
             raise ValueError("Placa com formato inválido. Utilize o formato AAA-1234 ou AAA1A23.")
         return plate.replace("-", "")
-    
+
 class VehicleCreate(VehicleBase):
     pass
 
@@ -29,7 +29,7 @@ class VehicleUpdate(BaseModel):
     color: Optional[str] = None
     plate: Optional[str] = None
     capacity: Optional[int] = Field(None, gt=0, le=8)
-    
+
     @field_validator("plate")
     @classmethod
     def validate_plate(cls, value: Optional[str]) -> Optional[str]:

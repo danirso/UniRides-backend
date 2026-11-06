@@ -42,12 +42,12 @@ The script checks the virtual environment, starts PostGIS and Mailpit, applies `
 
 To explore authentication in Swagger UI:
 
-1. Register through `POST /auth/register`. Registration accepts `puccampinas.edu.br`, `puc-campinas.edu.br` and `dac.unicamp.br` email domains.
+1. Register through `POST /auth/register` using `driver@example.com` or `passenger@example.com` with the local runner. Outside this local opt-in, registration accepts `puccampinas.edu.br`, `puc-campinas.edu.br` and `dac.unicamp.br` email domains.
 2. Open Mailpit and follow the activation link. Local email stays in Mailpit rather than being delivered to the recipient.
 3. Use **Authorize** in Swagger UI with the registered email as the username and the account password.
 4. Try the authenticated user, vehicle and ride endpoints.
 
-UniRides is an academic project, not an official service of the universities associated with those domains. API messages and parts of the source code are in Portuguese.
+UniRides is an academic project, not an official service of the universities associated with those domains. User-facing API messages remain in Portuguese.
 
 ### Google Maps key
 
@@ -86,12 +86,12 @@ The script selects `venv/bin/python`, checks that Pytest is installed and starts
 You can pass Pytest options through the script, for example:
 
 ```bash
-./scripts/test-local.sh -q tests/test_rideRequest.py
+./scripts/test-local.sh -q tests/test_ride_request.py
 ```
 
 Set `PYTHON_BIN` to use a different virtual environment, for example `PYTHON_BIN=.venv/bin/python ./scripts/test-local.sh`.
 
-The current suite contains **68 tests**:
+The current suite contains **77 collected test cases**:
 
 | Area | Tests |
 | --- | ---: |
@@ -102,6 +102,7 @@ The current suite contains **68 tests**:
 | Ride requests | 13 |
 | Reviews | 17 |
 | Health endpoint | 1 |
+| Local email policy and activation | 9 |
 
 The suite exercises the HTTP API through FastAPI's TestClient with real database operations. It includes successful flows, validation failures, ownership checks, ride state transitions and spatial matching cases. Email delivery is mocked; tests that create routes mock Google Maps responses. A cancellation regression test checks that using a request ID with a different ride ID returns 404 without changing request status or seat counts.
 

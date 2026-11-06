@@ -7,219 +7,219 @@ from app.models.user import User
 
 
 # ==========================================
-# TESTES DA ROTA: POST /rides/{id}/reviews
+# ENDPOINT TESTS: POST /rides/{id}/reviews
 # ==========================================
 
-def test_motorista_avalia_passageiro_sucesso_201(client, motorista_com_veiculo_setup, carona_concluida_com_passageiros):
-    ride, motorista, passageiro1, _ = carona_concluida_com_passageiros
-    _, _, headers_motorista = motorista_com_veiculo_setup
+def test_driver_reviews_passenger_success_201(client, driver_with_vehicle, completed_ride_with_passengers):
+    ride, driver, first_passenger, _ = completed_ride_with_passengers
+    _, _, driver_headers = driver_with_vehicle
 
-    payload = {"reviewee_id": str(passageiro1.id), "rating": 5, "comment": "Ótimo passageiro"}
+    payload = {"reviewee_id": str(first_passenger.id), "rating": 5, "comment": "Ótimo passageiro"}
 
-    response = client.post(f"/rides/{ride.id}/reviews", json=payload, headers=headers_motorista)
+    response = client.post(f"/rides/{ride.id}/reviews", json=payload, headers=driver_headers)
 
     assert response.status_code == status.HTTP_201_CREATED
     data = response.json()
     assert data["rating"] == 5
-    assert data["reviewee_id"] == str(passageiro1.id)
-    assert data["reviewer_id"] == str(motorista.id)
+    assert data["reviewee_id"] == str(first_passenger.id)
+    assert data["reviewer_id"] == str(driver.id)
 
 
-def test_passageiro_avalia_motorista_sucesso_201(client, passageiro_setup, carona_concluida_com_passageiros):
-    ride, motorista, _, _ = carona_concluida_com_passageiros
-    _, headers_passageiro = passageiro_setup
+def test_passenger_reviews_driver_success_201(client, passenger_setup, completed_ride_with_passengers):
+    ride, driver, _, _ = completed_ride_with_passengers
+    _, passenger_headers = passenger_setup
 
-    payload = {"reviewee_id": str(motorista.id), "rating": 4, "comment": "Boa viagem"}
+    payload = {"reviewee_id": str(driver.id), "rating": 4, "comment": "Boa viagem"}
 
-    response = client.post(f"/rides/{ride.id}/reviews", json=payload, headers=headers_passageiro)
+    response = client.post(f"/rides/{ride.id}/reviews", json=payload, headers=passenger_headers)
 
     assert response.status_code == status.HTTP_201_CREATED
     data = response.json()
     assert data["rating"] == 4
-    assert data["reviewee_id"] == str(motorista.id)
+    assert data["reviewee_id"] == str(driver.id)
 
 
-def test_avaliacao_atualiza_rating_medio_do_usuario(client, db_session, motorista_com_veiculo_setup, carona_concluida_com_passageiros):
-    ride, _, passageiro1, _ = carona_concluida_com_passageiros
-    _, _, headers_motorista = motorista_com_veiculo_setup
+def test_review_updates_user_average_rating(client, db_session, driver_with_vehicle, completed_ride_with_passengers):
+    ride, _, first_passenger, _ = completed_ride_with_passengers
+    _, _, driver_headers = driver_with_vehicle
 
-    payload = {"reviewee_id": str(passageiro1.id), "rating": 4}
-    client.post(f"/rides/{ride.id}/reviews", json=payload, headers=headers_motorista)
+    payload = {"reviewee_id": str(first_passenger.id), "rating": 4}
+    client.post(f"/rides/{ride.id}/reviews", json=payload, headers=driver_headers)
 
-    db_session.refresh(passageiro1)
-    assert passageiro1.rating_count == 1
-    assert float(passageiro1.rating_avg) == 4.0
+    db_session.refresh(first_passenger)
+    assert first_passenger.rating_count == 1
+    assert float(first_passenger.rating_avg) == 4.0
 
 
-def test_avaliacao_carona_nao_concluida_400(client, motorista_com_veiculo_setup, carona_agendada, passageiro_setup):
-    _, _, headers_motorista = motorista_com_veiculo_setup
-    passageiro1, _ = passageiro_setup
+def test_review_before_ride_completion_400(client, driver_with_vehicle, scheduled_ride, passenger_setup):
+    _, _, driver_headers = driver_with_vehicle
+    first_passenger, _ = passenger_setup
 
-    payload = {"reviewee_id": str(passageiro1.id), "rating": 5}
+    payload = {"reviewee_id": str(first_passenger.id), "rating": 5}
 
-    response = client.post(f"/rides/{carona_agendada.id}/reviews", json=payload, headers=headers_motorista)
+    response = client.post(f"/rides/{scheduled_ride.id}/reviews", json=payload, headers=driver_headers)
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert response.json()["detail"]["code"] == "RIDE_NOT_COMPLETED"
 
 
-def test_motorista_avaliar_passageiro_nao_participante_400(client, db_session, motorista_com_veiculo_setup, carona_concluida_com_passageiros):
-    ride, _, _, _ = carona_concluida_com_passageiros
-    _, _, headers_motorista = motorista_com_veiculo_setup
+def test_driver_reviews_nonparticipant_400(client, db_session, driver_with_vehicle, completed_ride_with_passengers):
+    ride, _, _, _ = completed_ride_with_passengers
+    _, _, driver_headers = driver_with_vehicle
 
-    outro_usuario = User(
+    other_user = User(
         name="Estranho",
         email="estranho@puccampinas.edu.br",
         password_hash=set_password_hash("123"),
         is_email_verified=True
     )
-    db_session.add(outro_usuario)
+    db_session.add(other_user)
     db_session.commit()
-    db_session.refresh(outro_usuario)
+    db_session.refresh(other_user)
 
-    payload = {"reviewee_id": str(outro_usuario.id), "rating": 5}
+    payload = {"reviewee_id": str(other_user.id), "rating": 5}
 
-    response = client.post(f"/rides/{ride.id}/reviews", json=payload, headers=headers_motorista)
-
-    assert response.status_code == status.HTTP_400_BAD_REQUEST
-    assert response.json()["detail"]["code"] == "INVALID_REVIEWEE"
-
-
-def test_passageiro_avaliar_outro_passageiro_400(client, passageiro_setup, carona_concluida_com_passageiros):
-    ride, _, _, passageiro2 = carona_concluida_com_passageiros
-    _, headers_passageiro1 = passageiro_setup
-
-    payload = {"reviewee_id": str(passageiro2.id), "rating": 3}
-
-    response = client.post(f"/rides/{ride.id}/reviews", json=payload, headers=headers_passageiro1)
+    response = client.post(f"/rides/{ride.id}/reviews", json=payload, headers=driver_headers)
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert response.json()["detail"]["code"] == "INVALID_REVIEWEE"
 
 
-def test_usuario_nao_participante_403(client, db_session, carona_concluida_com_passageiros):
-    ride, motorista, _, _ = carona_concluida_com_passageiros
+def test_passenger_reviews_another_passenger_400(client, passenger_setup, completed_ride_with_passengers):
+    ride, _, _, second_passenger = completed_ride_with_passengers
+    _, first_passenger_headers = passenger_setup
 
-    estranho = User(
+    payload = {"reviewee_id": str(second_passenger.id), "rating": 3}
+
+    response = client.post(f"/rides/{ride.id}/reviews", json=payload, headers=first_passenger_headers)
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert response.json()["detail"]["code"] == "INVALID_REVIEWEE"
+
+
+def test_nonparticipant_cannot_review_403(client, db_session, completed_ride_with_passengers):
+    ride, driver, _, _ = completed_ride_with_passengers
+
+    nonparticipant = User(
         name="Estranho",
         email="estranho2@puccampinas.edu.br",
         password_hash=set_password_hash("123"),
         is_email_verified=True
     )
-    db_session.add(estranho)
+    db_session.add(nonparticipant)
     db_session.commit()
-    db_session.refresh(estranho)
-    headers_estranho = {"Authorization": f"Bearer {create_access_token(data={'sub': str(estranho.id)})}"}
+    db_session.refresh(nonparticipant)
+    nonparticipant_headers = {"Authorization": f"Bearer {create_access_token(data={'sub': str(nonparticipant.id)})}"}
 
-    payload = {"reviewee_id": str(motorista.id), "rating": 5}
+    payload = {"reviewee_id": str(driver.id), "rating": 5}
 
-    response = client.post(f"/rides/{ride.id}/reviews", json=payload, headers=headers_estranho)
+    response = client.post(f"/rides/{ride.id}/reviews", json=payload, headers=nonparticipant_headers)
 
     assert response.status_code == status.HTTP_403_FORBIDDEN
     assert response.json()["detail"]["code"] == "ACCESS_DENIED"
 
 
-def test_avaliacao_duplicada_400(client, motorista_com_veiculo_setup, carona_concluida_com_passageiros):
-    ride, _, passageiro1, _ = carona_concluida_com_passageiros
-    _, _, headers_motorista = motorista_com_veiculo_setup
+def test_duplicate_review_400(client, driver_with_vehicle, completed_ride_with_passengers):
+    ride, _, first_passenger, _ = completed_ride_with_passengers
+    _, _, driver_headers = driver_with_vehicle
 
-    payload = {"reviewee_id": str(passageiro1.id), "rating": 5}
-    client.post(f"/rides/{ride.id}/reviews", json=payload, headers=headers_motorista)
+    payload = {"reviewee_id": str(first_passenger.id), "rating": 5}
+    client.post(f"/rides/{ride.id}/reviews", json=payload, headers=driver_headers)
 
-    response = client.post(f"/rides/{ride.id}/reviews", json=payload, headers=headers_motorista)
+    response = client.post(f"/rides/{ride.id}/reviews", json=payload, headers=driver_headers)
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert response.json()["detail"]["code"] == "DUPLICATE_REVIEW"
 
 
-def test_avaliar_a_si_mesmo_400(client, motorista_com_veiculo_setup, carona_concluida_com_passageiros):
-    ride, motorista, _, _ = carona_concluida_com_passageiros
-    _, _, headers_motorista = motorista_com_veiculo_setup
+def test_self_review_400(client, driver_with_vehicle, completed_ride_with_passengers):
+    ride, driver, _, _ = completed_ride_with_passengers
+    _, _, driver_headers = driver_with_vehicle
 
-    payload = {"reviewee_id": str(motorista.id), "rating": 5}
+    payload = {"reviewee_id": str(driver.id), "rating": 5}
 
-    response = client.post(f"/rides/{ride.id}/reviews", json=payload, headers=headers_motorista)
+    response = client.post(f"/rides/{ride.id}/reviews", json=payload, headers=driver_headers)
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert response.json()["detail"]["code"] == "INVALID_REVIEWEE"
 
 
-def test_rating_fora_do_intervalo_422(client, motorista_com_veiculo_setup, carona_concluida_com_passageiros):
-    ride, _, passageiro1, _ = carona_concluida_com_passageiros
-    _, _, headers_motorista = motorista_com_veiculo_setup
+def test_rating_outside_valid_range_422(client, driver_with_vehicle, completed_ride_with_passengers):
+    ride, _, first_passenger, _ = completed_ride_with_passengers
+    _, _, driver_headers = driver_with_vehicle
 
-    payload = {"reviewee_id": str(passageiro1.id), "rating": 6}
+    payload = {"reviewee_id": str(first_passenger.id), "rating": 6}
 
-    response = client.post(f"/rides/{ride.id}/reviews", json=payload, headers=headers_motorista)
+    response = client.post(f"/rides/{ride.id}/reviews", json=payload, headers=driver_headers)
 
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 # ==========================================
-# TESTES DA ROTA: GET /rides/{id}/reviews/pending
+# ENDPOINT TESTS: GET /rides/{id}/reviews/pending
 # ==========================================
 
-def test_motorista_ve_dois_passageiros_pendentes(client, motorista_com_veiculo_setup, carona_concluida_com_passageiros):
-    ride, _, passageiro1, passageiro2 = carona_concluida_com_passageiros
-    _, _, headers_motorista = motorista_com_veiculo_setup
+def test_driver_has_two_passengers_awaiting_reviews(client, driver_with_vehicle, completed_ride_with_passengers):
+    ride, _, first_passenger, second_passenger = completed_ride_with_passengers
+    _, _, driver_headers = driver_with_vehicle
 
-    response = client.get(f"/rides/{ride.id}/reviews/pending", headers=headers_motorista)
+    response = client.get(f"/rides/{ride.id}/reviews/pending", headers=driver_headers)
 
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
-    ids_pendentes = {item["user_id"] for item in data}
-    assert ids_pendentes == {str(passageiro1.id), str(passageiro2.id)}
+    pending_user_ids = {item["user_id"] for item in data}
+    assert pending_user_ids == {str(first_passenger.id), str(second_passenger.id)}
     assert all(item["role"] == "passenger" for item in data)
 
 
-def test_passageiro_ve_apenas_motorista_pendente(client, passageiro_setup, carona_concluida_com_passageiros):
-    ride, motorista, _, _ = carona_concluida_com_passageiros
-    _, headers_passageiro = passageiro_setup
+def test_passenger_has_only_driver_awaiting_review(client, passenger_setup, completed_ride_with_passengers):
+    ride, driver, _, _ = completed_ride_with_passengers
+    _, passenger_headers = passenger_setup
 
-    response = client.get(f"/rides/{ride.id}/reviews/pending", headers=headers_passageiro)
+    response = client.get(f"/rides/{ride.id}/reviews/pending", headers=passenger_headers)
 
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
     assert len(data) == 1
-    assert data[0]["user_id"] == str(motorista.id)
+    assert data[0]["user_id"] == str(driver.id)
     assert data[0]["role"] == "driver"
 
 
-def test_pendencia_some_apos_avaliar(client, motorista_com_veiculo_setup, carona_concluida_com_passageiros):
-    ride, _, passageiro1, passageiro2 = carona_concluida_com_passageiros
-    _, _, headers_motorista = motorista_com_veiculo_setup
+def test_reviewed_participant_is_removed_from_pending_list(client, driver_with_vehicle, completed_ride_with_passengers):
+    ride, _, first_passenger, second_passenger = completed_ride_with_passengers
+    _, _, driver_headers = driver_with_vehicle
 
-    payload = {"reviewee_id": str(passageiro1.id), "rating": 5}
-    client.post(f"/rides/{ride.id}/reviews", json=payload, headers=headers_motorista)
+    payload = {"reviewee_id": str(first_passenger.id), "rating": 5}
+    client.post(f"/rides/{ride.id}/reviews", json=payload, headers=driver_headers)
 
-    response = client.get(f"/rides/{ride.id}/reviews/pending", headers=headers_motorista)
+    response = client.get(f"/rides/{ride.id}/reviews/pending", headers=driver_headers)
 
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
     assert len(data) == 1
-    assert data[0]["user_id"] == str(passageiro2.id)
+    assert data[0]["user_id"] == str(second_passenger.id)
 
 
-def test_pendencia_vazia_para_carona_nao_concluida(client, motorista_com_veiculo_setup, carona_agendada):
-    _, _, headers_motorista = motorista_com_veiculo_setup
+def test_pending_reviews_empty_before_ride_completion(client, driver_with_vehicle, scheduled_ride):
+    _, _, driver_headers = driver_with_vehicle
 
-    response = client.get(f"/rides/{carona_agendada.id}/reviews/pending", headers=headers_motorista)
+    response = client.get(f"/rides/{scheduled_ride.id}/reviews/pending", headers=driver_headers)
 
     assert response.status_code == status.HTTP_200_OK
     assert response.json() == []
-    
+
 # ==========================================
-# TESTES DA ROTA: GET /users/{id}/reviews
+# ENDPOINT TESTS: GET /users/{id}/reviews
 # ==========================================
 
-def test_listar_avaliacoes_recebidas_mais_recentes_primeiro(client, motorista_com_veiculo_setup, passageiro_setup, carona_concluida_com_passageiros):
-    ride, motorista, passageiro1, _ = carona_concluida_com_passageiros
-    _, headers_passageiro = passageiro_setup
+def test_list_received_reviews_newest_first(client, driver_with_vehicle, passenger_setup, completed_ride_with_passengers):
+    ride, driver, first_passenger, _ = completed_ride_with_passengers
+    _, passenger_headers = passenger_setup
 
-    payload = {"reviewee_id": str(motorista.id), "rating": 4, "comment": "Boa viagem"}
-    client.post(f"/rides/{ride.id}/reviews", json=payload, headers=headers_passageiro)
+    payload = {"reviewee_id": str(driver.id), "rating": 4, "comment": "Boa viagem"}
+    client.post(f"/rides/{ride.id}/reviews", json=payload, headers=passenger_headers)
 
-    response = client.get(f"/users/{motorista.id}/reviews", headers=headers_passageiro)
+    response = client.get(f"/users/{driver.id}/reviews", headers=passenger_headers)
 
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
@@ -229,27 +229,27 @@ def test_listar_avaliacoes_recebidas_mais_recentes_primeiro(client, motorista_co
     assert data[0]["reviewer_name"] == "Passageiro Teste"
 
 
-def test_listar_avaliacoes_respeita_limit(client, motorista_com_veiculo_setup, passageiro_setup, carona_concluida_com_passageiros):
-    ride, motorista, _, _ = carona_concluida_com_passageiros
-    _, headers_passageiro = passageiro_setup
+def test_list_received_reviews_respects_limit(client, driver_with_vehicle, passenger_setup, completed_ride_with_passengers):
+    ride, driver, _, _ = completed_ride_with_passengers
+    _, passenger_headers = passenger_setup
 
-    payload = {"reviewee_id": str(motorista.id), "rating": 5}
-    client.post(f"/rides/{ride.id}/reviews", json=payload, headers=headers_passageiro)
+    payload = {"reviewee_id": str(driver.id), "rating": 5}
+    client.post(f"/rides/{ride.id}/reviews", json=payload, headers=passenger_headers)
 
-    response = client.get(f"/users/{motorista.id}/reviews?limit=0", headers=headers_passageiro)
+    response = client.get(f"/users/{driver.id}/reviews?limit=0", headers=passenger_headers)
 
     assert response.status_code == status.HTTP_200_OK
     assert response.json() == []
 
 
-def test_media_correta_apos_duas_avaliacoes_de_reviewers_diferentes(client, db_session, passageiro_setup, carona_concluida_com_passageiros):
-    ride, motorista, passageiro1, passageiro2 = carona_concluida_com_passageiros
-    _, headers_passageiro1 = passageiro_setup
-    headers_passageiro2 = {"Authorization": f"Bearer {create_access_token(data={'sub': str(passageiro2.id)})}"}
+def test_average_rating_after_reviews_from_two_users(client, db_session, passenger_setup, completed_ride_with_passengers):
+    ride, driver, first_passenger, second_passenger = completed_ride_with_passengers
+    _, first_passenger_headers = passenger_setup
+    second_passenger_headers = {"Authorization": f"Bearer {create_access_token(data={'sub': str(second_passenger.id)})}"}
 
-    client.post(f"/rides/{ride.id}/reviews", json={"reviewee_id": str(motorista.id), "rating": 5}, headers=headers_passageiro1)
-    client.post(f"/rides/{ride.id}/reviews", json={"reviewee_id": str(motorista.id), "rating": 3}, headers=headers_passageiro2)
+    client.post(f"/rides/{ride.id}/reviews", json={"reviewee_id": str(driver.id), "rating": 5}, headers=first_passenger_headers)
+    client.post(f"/rides/{ride.id}/reviews", json={"reviewee_id": str(driver.id), "rating": 3}, headers=second_passenger_headers)
 
-    db_session.refresh(motorista)
-    assert motorista.rating_count == 2
-    assert float(motorista.rating_avg) == 4.0
+    db_session.refresh(driver)
+    assert driver.rating_count == 2
+    assert float(driver.rating_avg) == 4.0

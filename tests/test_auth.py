@@ -5,7 +5,7 @@ from app.models.user import User
 from app.core.security import set_password_hash
 
 # ==========================================
-# TESTES DA ROTA: /auth/register
+# ENDPOINT TESTS: /auth/register
 # ==========================================
 
 def test_register_201(client, db_session):
@@ -15,13 +15,13 @@ def test_register_201(client, db_session):
         "password": "senha_segura_123"
     }
     response = client.post("/auth/register", json=payload)
-    
+
     assert response.status_code == status.HTTP_201_CREATED
     data = response.json()
     assert data["email"] == payload["email"]
     assert "id" in data
 
-def test_register_email_duplicado_400(client, db_session):
+def test_register_duplicate_email_400(client, db_session):
     user = User(
         name="Usuario Existente",
         email="duplicado@puccampinas.edu.br",
@@ -39,27 +39,27 @@ def test_register_email_duplicado_400(client, db_session):
         "can_drive": True
     }
     response = client.post("/auth/register", json=payload)
-    
+
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert response.json()["detail"]["code"] == "EMAIL_ALREADY_REGISTERED"
 
-def test_register_payload_invalido_422(client, db_session):
+def test_register_invalid_payload_422(client, db_session):
     payload = {
         "name": "Usuario Invalido",
         "email": "invalido@puccampinas.edu.br"
     }
     response = client.post("/auth/register", json=payload)
-    
+
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 # ==========================================
-# TESTES DA ROTA: /auth/login
+# ENDPOINT TESTS: /auth/login
 # ==========================================
 
-def test_login_sucesso_200(client, db_session):
+def test_login_success_200(client, db_session):
     email = "login_ok@puccampinas.edu.br"
     password = "password123"
-    
+
     user = User(
         name="Login Success",
         email=email,
@@ -71,13 +71,13 @@ def test_login_sucesso_200(client, db_session):
     db_session.commit()
 
     response = client.post("/auth/login", data={"username": email, "password": password})
-    
+
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
     assert "access_token" in data
     assert data["token_type"] == "bearer"
 
-def test_login_credenciais_invalidas_401(client, db_session):
+def test_login_invalid_credentials_401(client, db_session):
     email = "login_erro@puccampinas.edu.br"
     user = User(
         name="Erro Login",
@@ -90,14 +90,14 @@ def test_login_credenciais_invalidas_401(client, db_session):
     db_session.commit()
 
     response = client.post("/auth/login", data={"username": email, "password": "senha_errada"})
-    
+
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
     assert response.json()["detail"]["code"] == "INVALID_CREDENTIALS"
 
-def test_login_email_nao_verificado_403(client, db_session):
+def test_login_unverified_email_403(client, db_session):
     email = "unverified@puccampinas.edu.br"
     password = "password123"
-    
+
     user = User(
         name="Nao Verificado",
         email=email,
@@ -109,18 +109,18 @@ def test_login_email_nao_verificado_403(client, db_session):
     db_session.commit()
 
     response = client.post("/auth/login", data={"username": email, "password": password})
-    
+
     assert response.status_code == status.HTTP_403_FORBIDDEN
     assert response.json()["detail"]["code"] == "EMAIL_NOT_VERIFIED"
 
 # ==========================================
-# TESTES DA ROTA: /auth/verify-email
+# ENDPOINT TESTS: /auth/verify-email
 # ==========================================
 
-def test_verify_email_sucesso_200(client, db_session):
+def test_verify_email_success_200(client, db_session):
     token = "token_valido_123"
     expiration = datetime.now(timezone.utc) + timedelta(hours=1)
-    
+
     user = User(
         name="Ativacao Teste",
         email="ativacao@puccampinas.edu.br",
@@ -134,20 +134,20 @@ def test_verify_email_sucesso_200(client, db_session):
     db_session.commit()
 
     response = client.get(f"/auth/verify-email?token={token}")
-    
+
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["message"] == "E-mail verificado com sucesso! Sua conta está ativada."
 
-def test_verify_email_token_invalido_400(client, db_session):
+def test_verify_email_invalid_token_400(client, db_session):
     response = client.get("/auth/verify-email?token=token_inexistente")
-    
+
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert response.json()["detail"]["code"] == "INVALID_ACTIVATION_TOKEN"
 
-def test_verify_email_token_expirado_400(client, db_session):
+def test_verify_email_expired_token_400(client, db_session):
     token = "token_expirado_123"
     expiration = datetime.now(timezone.utc) - timedelta(hours=3)
-    
+
     user = User(
         name="Expirado Teste",
         email="expirado@puccampinas.edu.br",
@@ -161,6 +161,6 @@ def test_verify_email_token_expirado_400(client, db_session):
     db_session.commit()
 
     response = client.get(f"/auth/verify-email?token={token}")
-    
+
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert response.json()["detail"]["code"] == "EXPIRED_ACTIVATION_TOKEN"
