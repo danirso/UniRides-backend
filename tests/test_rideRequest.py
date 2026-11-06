@@ -164,6 +164,31 @@ def test_passageiro_cancela_solicitacao_aceita_reembolsa_vaga_200(client, passag
     db_session.refresh(carona_com_vagas)
     assert carona_com_vagas.available_seats == vagas_apos_aceite + 1
     
+def test_passageiro_nao_cancela_solicitacao_de_outra_carona_404(
+    client, passageiro_setup, carona_com_vagas, carona_agendada, solicitacao_pendente, db_session
+):
+    _, headers = passageiro_setup
+    solicitacao_pendente.status = RequestStatus.ACCEPTED
+    carona_com_vagas.available_seats -= 1
+    db_session.commit()
+    vagas_carona_original = carona_com_vagas.available_seats
+    vagas_outra_carona = carona_agendada.available_seats
+
+    response = client.post(
+        f"/rides/{carona_agendada.id}/requests/{solicitacao_pendente.id}/cancel",
+        headers=headers,
+    )
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response.json()["detail"]["code"] == "REQUEST_NOT_FOUND"
+    db_session.refresh(solicitacao_pendente)
+    db_session.refresh(carona_com_vagas)
+    db_session.refresh(carona_agendada)
+    assert solicitacao_pendente.status == RequestStatus.ACCEPTED
+    assert carona_com_vagas.available_seats == vagas_carona_original
+    assert carona_agendada.available_seats == vagas_outra_carona
+
+
 # ==========================================
 # TESTES: GET /rides/{ride_id}/requests (Visão do Motorista)
 # ==========================================

@@ -75,7 +75,8 @@ def cancelar_solicitacao(
     current_user: User = Depends(get_current_user)
 ):
     solicitacao = db.query(RideRequest).filter(
-        RideRequest.id == request_id, 
+        RideRequest.id == request_id,
+        RideRequest.ride_id == ride_id,
         RideRequest.passenger_id == current_user.id
     ).first()
     

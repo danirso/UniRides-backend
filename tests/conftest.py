@@ -4,21 +4,46 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import sessionmaker
 from fastapi.testclient import TestClient
 from unittest.mock import patch
+from urllib.parse import urlsplit
 
-from app.db.database import Base, get_db
-from app.main import app
 from app.core.config import settings
-from app.models.user import User
-from app.models.vehicle import Vehicle
-from app.models.ride import Ride, RideStatus
-from app.models.ride_request import RideRequest,RequestStatus
-from app.core.security import set_password_hash, create_access_token
 
 TEST_SQLALCHEMY_DATABASE_URL = settings.TEST_DATABASE_URL
 
 if not TEST_SQLALCHEMY_DATABASE_URL:
     raise RuntimeError("A variável TEST_DATABASE_URL não foi encontrada")
 
+
+def _supabase_project_ref(database_url: str) -> str | None:
+    parsed = urlsplit(database_url)
+    host = (parsed.hostname or "").lower()
+
+    if host.endswith(".pooler.supabase.com"):
+        username = parsed.username or ""
+        return username.rsplit(".", 1)[-1] if "." in username else None
+
+    if host.endswith(".supabase.co"):
+        parts = host.split(".")
+        return parts[1] if parts[0] == "db" else parts[0]
+
+    return None
+
+
+production_ref = _supabase_project_ref(settings.DATABASE_URL)
+test_ref = _supabase_project_ref(TEST_SQLALCHEMY_DATABASE_URL)
+
+if production_ref and test_ref and production_ref == test_ref:
+    raise RuntimeError("DATABASE_URL e TEST_DATABASE_URL apontam para o mesmo projeto Supabase")
+
+settings.DATABASE_URL = TEST_SQLALCHEMY_DATABASE_URL
+
+from app.db.database import Base, get_db
+from app.main import app
+from app.models.user import User
+from app.models.vehicle import Vehicle
+from app.models.ride import Ride, RideStatus
+from app.models.ride_request import RideRequest,RequestStatus
+from app.core.security import set_password_hash, create_access_token
 
 engine = create_engine(TEST_SQLALCHEMY_DATABASE_URL)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

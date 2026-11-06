@@ -10,6 +10,10 @@ class Settings(BaseSettings):
     MAIL_FROM: str
     MAIL_PORT: int = 587
     MAIL_SERVER: str
+    MAIL_STARTTLS: bool = True
+    MAIL_SSL_TLS: bool = False
+    MAIL_USE_CREDENTIALS: bool = True
+    MAIL_VALIDATE_CERTS: bool = True
     MAIL_FROM_NAME: str = "Unirides"
     GOOGLE_MAPS_API_KEY: str
     TEST_DATABASE_URL: str
